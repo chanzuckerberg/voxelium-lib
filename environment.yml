@@ -1,0 +1,25 @@
+name: vxm
+channels:
+  - defaults
+dependencies:
+  - python==3.11
+  - setuptools
+  - pip
+  - eigen
+  - loguru
+  - pip:
+      - matplotlib
+      - mrcfile
+      - numpy==1.*
+      - vtk
+      - scikit-learn
+      - scipy
+      - tensorboard
+      - torch==2.2.*
+      - torchvision
+      - tqdm
+      - starfile
+      - umap-learn
+      - imageio
+      - msgpack
+      - healpy

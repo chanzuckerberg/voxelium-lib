@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+"""
+Voxelium - Cryo-EM data analysis framework
+"""
+
+__version__ = '0.0.1'

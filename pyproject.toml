@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools >= 64", "wheel", "torch", "torchvision"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Voxelium"
+version = "0.0.1"
+description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
+]
+keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
