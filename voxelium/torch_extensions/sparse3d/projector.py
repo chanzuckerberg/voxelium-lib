@@ -7,13 +7,15 @@ Python API for the 3D reconstruction layer
 import numpy as np
 import torch
 
-from voxelium.torch_extensions.sparse3d import TrilinearProjection, VolumeExtraction
-from voxelium.base import grid_iterator, dt_desymmetrize, dt_symmetrize, make_explicit_grid2d, radial_index_expansion_3d, size_to_maxr, load_mrc, trim_to_threshold, make_cubic, rescale_voxelsize, pad_and_center_mass, dft, idft
+import voxelium as vx
 
 class Projector(torch.nn.Module):
     def __init__(
             self,
             size,
+            mask_radius=None,
+            mask_edge=None,
+            output_norm=None,
             trim_size=None,
             dtype=torch.float32,
             index_margin=3
@@ -31,46 +33,57 @@ class Projector(torch.nn.Module):
         self.size = size
         self.size_x = size // 2 + 1
         self.index_margin = index_margin
-        self.maxr = size_to_maxr(size)
+        self.maxr = vx.size_to_maxr(size)
         self.dtype = dtype
+        self.output_norm = output_norm
+
+        mask_edge = mask_edge or 5
+        mask_radius = (trim_size - mask_edge) / 2 if mask_radius is None else mask_radius
+        self.circular_mask = torch.nn.Parameter(vx.smooth_circular_mask(trim_size, mask_radius, mask_edge), requires_grad=False)
 
         bz = self.size
         bz_2 = bz // 2
         bz_x = bz_2 + 1
-        grid_mask = np.zeros((bz, bz, bz_x), dtype=bool)
-        grid_indices = np.zeros((bz, bz, bz_x), dtype=int) - 1
-        inverse_grid_indices = np.zeros((bz * bz * bz_x), dtype=int)
-        max_r2 = size_to_maxr(self.size) ** 2
-        i = 0
-        for z, y, x in grid_iterator(bz, bz, bz_x):
-            if (z - bz_2) ** 2 + (y - bz_2) ** 2 + x ** 2 < max_r2:
-                grid_mask[z, y, x] = True
-                grid_indices[z, y, x] = i
-                inverse_grid_indices[i] = z * bz * bz_x + y * bz_x + x
-                i += 1
+        max_r2 = self.maxr ** 2
+        
+        z, y, x = torch.meshgrid(
+            torch.arange(bz, dtype=torch.int32),
+            torch.arange(bz, dtype=torch.int32),
+            torch.arange(bz_x, dtype=torch.int32),
+            indexing='ij'
+        )
+        
+        z, y = z - bz_2, y - bz_2
+        
+        mask = (z**2 + y**2 + x**2) < max_r2  # Boolean mask
+        del z, y, x  # To save some space
 
-        self.weight_count = i
-        inverse_grid_indices = inverse_grid_indices[:i]
+        weight_count = mask.sum().item()
+        
+        grid_indices = torch.full((bz, bz, bz_x), -1, dtype=torch.long)
+        grid_indices[mask] = torch.arange(weight_count, dtype=torch.long)
+        
+        # Compute inverse indices
+        inverse_grid_indices = torch.nonzero(mask.flatten(), as_tuple=True)[0]
+
+        # Everything outside mask is mapped to a single element at the end (null element)
+        null_index = weight_count
+        grid_indices[~mask] = null_index
+
+        # Store results
+        self.weight_count = weight_count + 1  # Add one to store the null element
 
         # Add margin for pixel spread into voxels
         m = self.index_margin
         bz += m * 2
         bz_2 += m
-        grid_indices_margin = np.zeros((bz, bz, bz_2 + 1), dtype=int) - 1
+        grid_indices_margin = torch.full((bz, bz, bz_2 + 1), null_index, dtype=torch.long)
         grid_indices_margin[m:-m, m:-m, :-m] = grid_indices
         grid_indices = grid_indices_margin
 
-        for i in range(5):
-            radial_index_expansion_3d(grid_indices)
-
-        self.grid3d_mask = torch.nn.Parameter(
-            torch.tensor(grid_mask, dtype=torch.bool), requires_grad=False)
-
-        self.grid3d_index = torch.nn.Parameter(
-            torch.tensor(grid_indices, dtype=torch.long), requires_grad=False)
-
-        self.inverse_grid3d_indices = torch.nn.Parameter(
-            torch.tensor(inverse_grid_indices, dtype=torch.long), requires_grad=False)
+        self.grid3d_mask = torch.nn.Parameter(mask.bool(), requires_grad=False)
+        self.grid3d_index = torch.nn.Parameter(grid_indices.long(), requires_grad=False)
+        self.inverse_grid3d_indices = torch.nn.Parameter(inverse_grid_indices.long(), requires_grad=False)
 
         data_tensor = torch.zeros((self.weight_count, 1, 2), dtype=self.dtype)
         self.weight = torch.nn.Parameter(data=data_tensor, requires_grad=True)
@@ -87,13 +100,13 @@ class Projector(torch.nn.Module):
         Y = self.size
 
         if grid2d_coord is None:
-            coord, mask = make_explicit_grid2d(size=Y, max_r=max_r, device=default_device)
+            coord, mask = vx.make_explicit_grid2d(size=Y, max_r=max_r, device=default_device)
         else:
             coord = grid2d_coord
 
         input = torch.ones([B, 1]).to(default_device)
 
-        p = TrilinearProjection.apply(
+        p = vx.TrilinearProjection.apply(
             input,  # input
             self.weight,  # weight
             None,  # bias
@@ -111,14 +124,16 @@ class Projector(torch.nn.Module):
             p_ = torch.zeros([B, Y * X], device=p.device, dtype=p.dtype)
             p_[:, mask] = p
             p_ = p_.view(B, Y, X)
-            p = dt_desymmetrize(p_, dim=2)
+            p = vx.dt_desymmetrize(p_, dim=2)
 
         if not return_ft:
-            p = idft(p, dim=2, real_in=True)
-            #TODO Apply circular mask
-            if self.trim_size is not None and self.trim_size < p.size(-1):
+            p = vx.idft(p, dim=2, real_in=True)
+            if self.trim_size < p.size(-1):
                 m = p.size(-1) // 2 - self.trim_size // 2
                 p = p[:, m:m+self.trim_size, m:m+self.trim_size]
+            p *= self.circular_mask.data[None]
+            if self.output_norm is not None:
+                p /= self.output_norm / (p.sum(0, keepdim=True) + 1e-12)
 
         return p
 
@@ -128,9 +143,10 @@ class Projector(torch.nn.Module):
         Set FFT of the model
         """
         if symmetrize:
-            grid = dt_symmetrize(grid)
+            grid = vx.dt_symmetrize(grid)
 
-        self.weight[:, 0] = torch.view_as_real(grid.flatten()[self.inverse_grid3d_indices])
+        # Map to everything but the null element at -1
+        self.weight[:-1, 0] = torch.view_as_real(grid.flatten()[self.inverse_grid3d_indices])
         return self
 
     @torch.no_grad()
@@ -146,29 +162,45 @@ class Projector(torch.nn.Module):
         grid = torch.zeros_like(grid_)
         grid[self.grid3d_mask] = grid_[self.grid3d_mask]
         if desymmetrize:
-            grid = dt_desymmetrize(grid)
+            grid = vx.dt_desymmetrize(grid)
 
         return grid
 
     @staticmethod
-    def from_file(path, voxel_size, padding=2, backgroud_threshold=None, device="cpu"):
-        ref, ref_voxel_size, _ = load_mrc(path)
+    def from_file(path, voxel_size, padding=2, trim=False, normalize=True, device="cpu", *args, **kwargs):
+        assert padding >= 1, "Padding must be larger than or equal to 1"
 
+        ref, ref_voxel_size, _ = vx.load_mrc(path)
         ref = ref.copy()
-
-        if backgroud_threshold is not None:
-            ref = trim_to_threshold(ref, threshold=backgroud_threshold)
         
-        ref, _, _ = make_cubic(ref)
+        ref, _, _ = vx.make_cubic(ref)
 
         ref = torch.from_numpy(ref).to(device)
-        ref = rescale_voxelsize(ref, voxel_size=ref_voxel_size, target_voxel_size=voxel_size)
-
-        assert padding >= 1
+        ref = vx.rescale_voxelsize(ref, voxel_size=ref_voxel_size, target_voxel_size=voxel_size)
 
         size = ref.shape[0]
-        size_pad = size * padding
-        ref = pad_and_center_mass(ref, size_pad)
-        ref_ft = dft(ref, real_in=True)
 
-        return Projector(size=size_pad, trim_size=size).to(device).set_model(ref_ft)
+        ref *= vx.smooth_spherical_mask(
+            grid_size=size, radius=size/2, thickness=3, device=device)
+
+        if normalize:
+            ref /= ref[ref != 0].std() + 1e-12
+
+        size_pad = max(int(size * padding), size)
+        if trim:
+            ref = vx.resize_3d_grid(ref, size_pad)
+        else:
+            ref = vx.pad_and_center_mass(ref, size_pad, margin=0)
+        ref *= size_pad / size  # Rescale to maintain same absolute values
+        ref_ft = vx.dft(ref, real_in=True)
+
+        if "mask_edge" not in kwargs and "mask_radius" not in kwargs:
+            mask_edge = max(40 / voxel_size, 3)
+            kwargs["mask_radius"] = size_pad / 2 - mask_edge
+            kwargs["mask_edge"] = mask_edge
+
+        if "trim_size" not in kwargs:
+            trim_size = size if trim else size_pad
+
+        p = Projector(size=size_pad, trim_size=trim_size, *args, **kwargs)
+        return p.to(device).set_model(ref_ft)

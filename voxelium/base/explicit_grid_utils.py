@@ -106,7 +106,7 @@ def make_explicit_grid3d(size: int = None, max_r: int = None):
 
     return coord, mask
 
-
+@torch.no_grad()
 def radial_index_expansion_3d(grid):
     assert grid.shape[0] == grid.shape[1] == grid.shape[2] * 2 - 1
     bz = grid.shape[0]

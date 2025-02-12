@@ -82,7 +82,9 @@ def load_mrc(mrc_fn):
     else:
         raise RuntimeError("MRC file axis arrangement not supported!")
 
-    return grid, float(mrc_file.voxel_size.x), global_origin
+    voxel_size = float(mrc_file.voxel_size.x)
+
+    return grid, voxel_size, global_origin
 
 
 def make_cubic(box):
@@ -233,6 +235,7 @@ def trim_to_threshold(grid, threshold=0.):
 
 
 def smooth_circular_mask(grid_size, radius, thickness):
+    """ Mask radius is center of edge """
     ls = torch.linspace(-grid_size / 2, grid_size / 2, grid_size)
     r2 = torch.sum(torch.stack(torch.meshgrid(ls, ls, indexing="ij"), -1).square(), -1)
     r = r2.sqrt()
@@ -245,13 +248,13 @@ def smooth_circular_mask(grid_size, radius, thickness):
     return mask
 
 
-def smooth_spherical_mask(grid_size, radius, thickness):
-    ls = torch.linspace(-grid_size / 2, grid_size / 2, grid_size)
+def smooth_spherical_mask(grid_size, radius, thickness, device="cpu"):
+    ls = torch.linspace(-grid_size / 2, grid_size / 2, grid_size, device=device)
     r2 = torch.sum(torch.stack(torch.meshgrid(ls, ls, ls, indexing="ij"), -1).square(), -1)
     r = r2.sqrt()
     band_mask = (radius <= r) & (r <= radius + thickness)
     r_band_mask = r[band_mask]
-    mask = torch.zeros((grid_size, grid_size, grid_size))
+    mask = torch.zeros((grid_size, grid_size, grid_size), device=device)
     mask[r < radius] = 1
     mask[band_mask] = torch.cos(torch.pi * (r_band_mask - radius) / thickness) / 2 + .5
     mask[radius + thickness < r] = 0
