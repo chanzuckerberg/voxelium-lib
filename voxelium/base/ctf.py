@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 
 """
-Module for calculations related to the contrast transfer function (CTF)
-in cryo-EM single particle analysis.
+Module for calculations related to the contrast transfer function (CTF).
 """
 
 from typing import Tuple, Union, TypeVar, Dict
 
 import numpy as np
 import torch
+
+from .spectral import get_freq
+
+from functools import lru_cache
 
 Tensor = TypeVar('torch.tensor')
 
@@ -20,8 +23,7 @@ class ContrastTransferFunction:
             spherical_aberration: float = 0.,
             amplitude_contrast: float = 0.,
             phase_shift: float = 0.,
-            b_factor: float = 0.,
-            device="cpu"
+            b_factor: float = 0.
     ) -> None:
         """
         Initialization of the CTF parameter for an optics group.
@@ -63,24 +65,18 @@ class ContrastTransferFunction:
             np.arctan(
                 amplitude_contrast / np.sqrt(1-amplitude_contrast**2)
             )
-
-        self.xx = {}
-        self.yy = {}
-        self.xy = {}
-        self.n4 = {}
-
-        self.device = device
+        self.c3_c5 = self.c3 + self.c5
 
     def __call__(
             self,
             grid_size: int,
             pixel_size: float,
             u: Tensor,
-            v: Tensor,
-            angle: Tensor,
-            bfactor: Tensor = None,
+            v: Tensor = None,
+            angle: Tensor = None,
+            b_factor: Tensor = None,
             h_sym: bool = False,
-            antialiasing: int = 0
+            center: bool = True
     ) -> Tensor:
         """
         Get the CTF in an numpy array, the size of freq_x or freq_y.
@@ -89,121 +85,133 @@ class ContrastTransferFunction:
         :param u: the U defocus
         :param v: the V defocus
         :param angle: the azimuthal angle defocus (degrees)
-        :param antialiasing: Antialiasing oversampling factor (0 = no antialiasing)
         :param grid_size: the side of the box
         :param pixel_size: pixel size
-        :param bfactor: per CTF bfactor, overwritting the global one included in constructor
+        :param b_factor: per CTF B-factor, overwritting the global one included in constructor
         :param h_sym: Only consider the hermitian half
         :return: Numpy array or Torch tensor containing the CTF
         """
 
+        dim = 1 if v is None else 2
+        
         u = u.view(-1)
-        v = v.view(-1)
+        freq = self._get_freq(
+            grid_size=grid_size, 
+            pixel_size=pixel_size, 
+            h_sym=h_sym, 
+            dim=dim,
+            center=center,
+            device=u.device
+        )
 
-        # Use cache
-        tag = f"{grid_size}_{round(pixel_size, 3)}_{h_sym}_{antialiasing}"
-        if tag not in self.xx:
-            freq_x, freq_y = self._get_freq(grid_size, pixel_size, h_sym, antialiasing)
-            xx = freq_x**2
-            yy = freq_y**2
-            xy = freq_x * freq_y
-            n4 = (xx + yy)**2  # Norms squared^2
-            self.xx[tag] = xx.to(self.device)
-            self.yy[tag] = yy.to(self.device)
-            self.xy[tag] = xy.to(self.device)
-            self.n4[tag] = n4.to(self.device)
+        # 1 Dimensions
+        if dim == 1:
+            n2, n4 = freq
+            gamma = self.c1 * u[:, None] * n2[None] + self.c2 * n4[None] - self.c3_c5
+            ctf = -torch.sin(gamma)
+            if b_factor is not None:
+                c4 = -b_factor/4.
+                ctf *= torch.exp(c4 * n4[None])
+            if self.c4 != 0:
+                ctf *= torch.exp(self.c4 * n4[None])
 
-        xx = self.xx[tag]
-        yy = self.yy[tag]
-        xy = self.xy[tag]
-        n4 = self.n4[tag]
+        # 2 Dimensions
+        elif dim == 2:
+            v = v.view(-1)
+            xx, yy, xy, n4 = freq
 
-        angle = angle * np.pi / 180
-        acos = torch.cos(angle)
-        asin = torch.sin(angle)
-        acos2 = torch.square(acos)
-        asin2 = torch.square(asin)
+            angle = angle * np.pi / 180
+            acos = torch.cos(angle)
+            asin = torch.sin(angle)
+            acos2 = torch.square(acos)
+            asin2 = torch.square(asin)
 
-        """
-        Out line of math for following three lines of code
-        Q = [[sin cos] [-sin cos]] sin/cos of the angle
-        D = [[u 0] [0 v]]
-        A = Q^T.D.Q = [[Axx Axy] [Ayx Ayy]]
-        Axx = cos^2 * u + sin^2 * v
-        Ayy = sin^2 * u + cos^2 * v
-        Axy = Ayx = cos * sin * (u - v)
-        defocus = A.k.k^2 = Axx*x^2 + 2*Axy*x*y + Ayy*y^2
-        """
+            """
+            Outline of math for following three lines of code
+            Q = [[sin cos] [-sin cos]] sin/cos of the angle
+            D = [[u 0] [0 v]]
+            A = Q^T.D.Q = [[Axx Axy] [Ayx Ayy]]
+            Axx = cos^2 * u + sin^2 * v
+            Ayy = sin^2 * u + cos^2 * v
+            Axy = Ayx = cos * sin * (u - v)
+            defocus = A.k.k^2 = Axx*x^2 + 2*Axy*x*y + Ayy*y^2
+            """
 
-        xx_ = (acos2 * u + asin2 * v)[:, None, None] * xx[None, :, :]
-        yy_ = (asin2 * u + acos2 * v)[:, None, None] * yy[None, :, :]
-        xy_ = (acos * asin * (u - v))[:, None, None] * xy[None, :, :]
+            xx_ = (acos2 * u + asin2 * v)[:, None, None] * xx[None]
+            yy_ = (asin2 * u + acos2 * v)[:, None, None] * yy[None]
+            xy_ = (acos * asin * (u - v))[:, None, None] * xy[None]
 
-        gamma = self.c1 * (xx_ + 2. * xy_ + yy_) + self.c2 * n4[None, :, :] - self.c3 - self.c5
-        ctf = -torch.sin(gamma)
-        if bfactor is not None:
-            c4 = -bfactor/4.
-            ctf *= torch.exp(c4 * n4)
-        if self.c4 != 0:
-            ctf *= torch.exp(self.c4 * n4)
+            gamma = self.c1 * (xx_ + 2. * xy_ + yy_) + self.c2 * n4[None] - self.c3_c5
 
-        if antialiasing > 0:
-            o = 2**antialiasing
-            ctf = ctf.unsqueeze(1)  # Add singleton channel
-            ctf = torch.nn.functional.avg_pool2d(ctf, kernel_size=o+o//2, stride=o)
-            ctf = ctf.squeeze(1)  # Remove singleton channel
-
+            ctf = -torch.sin(gamma)
+            if b_factor is not None:
+                c4 = -b_factor/4.
+                ctf *= torch.exp(c4 * n4[None])
+            if self.c4 != 0:
+                ctf *= torch.exp(self.c4 * n4[None])
+        
         return ctf
-
-    def to(self, device):
-        if self.device != device:
-            self.device = device
-            for tag in self.xx:
-                self.xx[tag] = self.xx[tag].to(device)
-                self.yy[tag] = self.yy[tag].to(device)
-                self.xy[tag] = self.xy[tag].to(device)
-                self.n4[tag] = self.n4[tag].to(device)
-        return self
+    
+    def bfactor_only(
+        self,
+        b_factor: Tensor,
+        grid_size: int,
+        pixel_size: float,
+        dim: float = 2,
+        h_sym: bool = False,
+        center: bool = True
+    ):  
+        freq = self._get_freq(
+            grid_size=grid_size, 
+            pixel_size=pixel_size, 
+            h_sym=h_sym, 
+            dim=dim,
+            center=center,
+            device=b_factor.device
+        )
+        # 1 Dimensions
+        if dim == 1:
+            _, n4 = freq
+            return torch.exp(-b_factor/4. * n4[None])
+        # 2 Dimensions
+        elif dim == 2:
+            _, _, _, n4 = freq
+            return torch.exp(-b_factor/4. * n4[None])
 
     @staticmethod
+    @lru_cache(maxsize=5, typed=False)
     def _get_freq(
             grid_size: int,
             pixel_size: float,
             h_sym: bool = False,
-            antialiasing: int = 0
+            center: bool = True,
+            dim: int = 2,
+            device="cpu"
     ) -> Union[
             Union[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]],
             Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]
          ]:
-        """
-        Get the inverted frequencies of the Fourier transform of a square or cuboid grid.
-        Can generate both Torch tensors and Numpy arrays.
-        TODO Add 3D
-        :param antialiasing: Antialiasing oversampling factor (0 = no antialiasing)
-        :param grid_size: the side of the box
-        :param pixel_size: pixel size
-        :param h_sym: Only consider the hermitian half
-        :return: two or three numpy arrays or tensors,
-                 containing frequencies along the different axes
-        """
-        if antialiasing > 0:
-            o = 2**antialiasing
-            grid_size *= o
-            y_ls = np.linspace(
-                -(grid_size + o) // 2,
-                (grid_size - o) // 2,
-                grid_size + o//2
-            )
-            x_ls = y_ls if not h_sym else torch.linspace(0, grid_size // 2, grid_size // 2 + o + 1)
-        else:
-            y_ls = np.linspace(-grid_size // 2, grid_size // 2 - 1, grid_size)
-            x_ls = y_ls if not h_sym else torch.linspace(0, grid_size // 2, grid_size // 2 + 1)
+        freq = get_freq(
+            grid_size=grid_size,
+            pixel_size=pixel_size,
+            h_sym=h_sym,
+            dim=dim,
+            device=device,
+            center=center
+        )
+        if dim == 1:
+            n2 = freq**2
+            n4 = n2**2
+            return n2, n4
+        elif dim == 2:
+            freq_x, freq_y = freq
+            xx = freq_x**2
+            yy = freq_y**2
+            xy = freq_x * freq_y
+            n4 = (xx + yy)**2  # Norms squared^2
 
-        y, x = torch.meshgrid(torch.Tensor(y_ls), torch.Tensor(x_ls), indexing='ij')
-        freq_x = x / (grid_size * pixel_size)
-        freq_y = y / (grid_size * pixel_size)
+            return xx, yy, xy, n4
 
-        return freq_x, freq_y
 
     def get_state_dict(self) -> Dict:
         return {
@@ -234,29 +242,3 @@ class ContrastTransferFunction:
             )
         else:
             raise RuntimeError(f"Version '{state_dict['version']}' not supported.")
-
-
-if __name__ == "__main__":
-    os1 = 0
-    os2 = 2
-    box = 200
-    df = torch.Tensor([[20000]])
-    pixA = 1.
-
-    freq1_x, freq1_y = ContrastTransferFunction._get_freq(box, pixA, antialiasing=os1)
-    ctf1 = ContrastTransferFunction(300, 2.7, 0.1, 0, 0, os1)
-
-    freq2_x, freq2_y = ContrastTransferFunction._get_freq(box, pixA, antialiasing=os2)
-    ctf2 = ContrastTransferFunction(300, 2.7, 0.1, 0, 0, os2)
-
-    test1 = ctf1(df, df, torch.zeros([1, 1])).cpu().numpy()
-    test2 = ctf2(df, df, torch.zeros([1, 1])).cpu().numpy()
-    diff = test1 - test2
-    print("%.10f" % np.mean(np.abs(diff)))
-
-    import matplotlib.pylab as plt
-    _, [ax1, ax2, ax3] = plt.subplots(1, 3)
-    ax1.imshow(test1)
-    ax2.imshow(test2)
-    ax3.imshow(diff)
-    plt.show()

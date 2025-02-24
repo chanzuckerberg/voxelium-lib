@@ -405,11 +405,11 @@ def fast_gaussian_filter(grid, kernel_sigma=None, kernel=None):
     if len(shape) == 3:
         grid = grid.view(1, 1, *shape)
 
-    if len(shape) == 5:  # 3D
+    if len(grid.shape) == 5:  # 3D
         grid = torch.nn.functional.conv3d(grid, k[None, None, :, None, None], padding='same')
         grid = torch.nn.functional.conv3d(grid, k[None, None, None, :, None], padding='same')
         grid = torch.nn.functional.conv3d(grid, k[None, None, None, None, :], padding='same')
-    elif len(shape) == 2:  # 2D
+    elif len(grid.shape) == 4:  # 2D
         grid = torch.nn.functional.conv2d(grid, k[None, None, :, None], padding='same')
         grid = torch.nn.functional.conv2d(grid, k[None, None, None, :], padding='same')
     else:

@@ -50,6 +50,42 @@ def torch_normalize(torch_input):
     return norm
 
 
+def torch_interp(x: torch.Tensor, y: torch.Tensor, xp: torch.Tensor):
+    ''' 
+    x : [..., N]
+    y : [..., N]
+    xp: [..., P]
+    '''
+    x_min, min_indices = torch.min(x, dim= -1, keepdim = True)
+    x_max, max_indices = torch.max(x, dim= -1, keepdim = True)
+
+    y_min = torch.gather(y, -1, min_indices)
+    y_max = torch.gather(y, -1, max_indices)
+
+    xp_min = torch.amin(xp, -1, keepdim= True)
+    xp_max = torch.amax(xp, -1, keepdim= True)
+
+    ## Handle the case where out of bound value in support
+    x = torch.cat([torch.minimum(x_min, xp_min), x, torch.maximum(x_max, xp_max)], dim = -1)
+    y = torch.cat([y_min, y, y_max], dim = -1)
+
+    x_sorted, sorted_idx = torch.sort(x, dim = -1)
+    y_sorted = torch.gather(y, -1, sorted_idx)
+
+    right_idx = torch.searchsorted(x_sorted, xp)
+    left_idx = right_idx.sub(1).clamp(0, x.shape[-1]-1)
+
+    left_dist = xp - torch.gather(x_sorted, -1, left_idx)
+    right_dist = torch.gather(x_sorted, -1, right_idx) - xp
+
+    left_y = torch.gather(y_sorted, -1, left_idx)
+    right_y = torch.gather(y_sorted, -1, right_idx)
+
+    yp = left_y + left_dist/(left_dist + right_dist) * (right_y - left_y)
+
+    return yp
+
+
 def make_imshow_fig(data):
     if len(data.shape) == 3:
         data = data[data.shape[0] // 2]

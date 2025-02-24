@@ -16,7 +16,7 @@ class Projector(torch.nn.Module):
             mask_radius=None,
             mask_edge=None,
             output_norm=None,
-            trim_size=None,
+            output_size=None,
             dtype=torch.float32,
             index_margin=3
     ):
@@ -25,10 +25,12 @@ class Projector(torch.nn.Module):
         if size % 2 != 0:
             raise RuntimeError("Box size must be even")
         
-        self.trim_size = size if trim_size is None else trim_size
+        self.output_size = size if output_size is None else output_size
 
         if size % 2 == 0:
             size += 1
+
+        self.output_shape = (self.output_size, self.output_size)
 
         self.size = size
         self.size_x = size // 2 + 1
@@ -38,8 +40,8 @@ class Projector(torch.nn.Module):
         self.output_norm = output_norm
 
         mask_edge = mask_edge or 5
-        mask_radius = (trim_size - mask_edge) / 2 if mask_radius is None else mask_radius
-        self.circular_mask = torch.nn.Parameter(vx.smooth_circular_mask(trim_size, mask_radius, mask_edge), requires_grad=False)
+        mask_radius = (output_size - mask_edge) / 2 if mask_radius is None else mask_radius
+        self.circular_mask = torch.nn.Parameter(vx.smooth_circular_mask(output_size, mask_radius, mask_edge), requires_grad=False)
 
         bz = self.size
         bz_2 = bz // 2
@@ -128,9 +130,9 @@ class Projector(torch.nn.Module):
 
         if not return_ft:
             p = vx.idft(p, dim=2, real_in=True)
-            if self.trim_size < p.size(-1):
-                m = p.size(-1) // 2 - self.trim_size // 2
-                p = p[:, m:m+self.trim_size, m:m+self.trim_size]
+            if self.output_size < p.size(-1):
+                m = p.size(-1) // 2 - self.output_size // 2
+                p = p[:, m:m+self.output_size, m:m+self.output_size]
             p *= self.circular_mask.data[None]
             if self.output_norm is not None:
                 p /= self.output_norm / (p.sum(0, keepdim=True) + 1e-12)
@@ -199,8 +201,8 @@ class Projector(torch.nn.Module):
             kwargs["mask_radius"] = size_pad / 2 - mask_edge
             kwargs["mask_edge"] = mask_edge
 
-        if "trim_size" not in kwargs:
-            trim_size = size if trim else size_pad
+        if "output_size" not in kwargs:
+            output_size = size if trim else size_pad
 
-        p = Projector(size=size_pad, trim_size=trim_size, *args, **kwargs)
+        p = Projector(size=size_pad, output_size=output_size, *args, **kwargs)
         return p.to(device).set_model(ref_ft)

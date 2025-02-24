@@ -9,6 +9,8 @@ import numpy as np
 import torch
 from typing import Tuple, Union, TypeVar, List
 
+from .torch_utils import torch_interp
+
 Tensor = TypeVar('torch.tensor')
 
 
@@ -80,12 +82,20 @@ def dft(
         real_in: bool = False
 ) -> Union[Tensor, np.ndarray]:
     """
-    Discreet Fourier transform
-    :param grid: Numpy array or Pytorch tensor to be transformed, can be stack
-    :param dim: If stacked grids, specify the dimensionality
-    :param center: If the zeroth frequency should be centered
-    :param real_in: Input is real. Only returns hermitian half
-    :return: Transformed Numpy array or Pytorch tensor
+    Computes the Discrete Fourier Transform (DFT) of an input array.
+
+    This function applies the DFT to an input grid, which can be either a NumPy array or a PyTorch tensor. 
+    It supports multi-dimensional transforms and allows for optional frequency centering.
+
+    Parameters:
+        grid (Union[Tensor, np.ndarray]): The input array or tensor to be transformed.
+        dim (int, optional): The dimensionality along which the transformation is applied. 
+                             If None, all dimensions are transformed.
+        center (bool, optional): If True, the zero-frequency component is shifted to the center of the spectrum.
+        real_in (bool, optional): If True, assumes the input is real-valued and computes the Hermitian half of the spectrum.
+
+    Returns:
+        Union[Tensor, np.ndarray]: The transformed array, either as a NumPy array or a PyTorch tensor.
     """
     use_torch = torch.is_tensor(grid)
     axes = _dt_set_axes(grid.shape, dim)
@@ -111,12 +121,20 @@ def idft(
         real_in: bool = False
 ) -> Union[Tensor, np.ndarray]:
     """
-    Inverse Discreet Fourier transform
-    :param grid_ft: Numpy array or Pytorch tensor to be transformed, can be stack
-    :param dim: If stacked grids, specify the dimensionality
-    :param centered: If the zeroth frequency should be centered
-    :param real_in: Input is real. Only returns hermitian half
-    :return: Inverse transformed Numpy array or Pytorch tensor
+    Computes the Inverse Discrete Fourier Transform (IDFT) of an input array.
+
+    This function applies the IDFT to reconstruct the original signal from its frequency representation.
+    It supports multi-dimensional inverse transforms and allows for optional frequency centering.
+
+    Parameters:
+        grid_ft (Union[Tensor, np.ndarray]): The transformed input array or tensor in the frequency domain.
+        dim (int, optional): The dimensionality along which the inverse transformation is applied.
+                             If None, all dimensions are transformed.
+        centered (bool, optional): If True, assumes the zero-frequency component is centered and shifts it back.
+        real_in (bool, optional): If True, assumes a Hermitian symmetric input (i.e., real-valued in time domain).
+
+    Returns:
+        Union[Tensor, np.ndarray]: The inverse-transformed array, either as a NumPy array or a PyTorch tensor.
     """
     use_torch = torch.is_tensor(grid_ft)
     axes = _dt_set_axes(grid_ft.shape, dim)
@@ -133,6 +151,110 @@ def idft(
             else np.fft.ifftshift(np.fft.ifftn(grid_ft, axes=axes), axes=axes)
 
     return grid
+
+
+def rft(
+        grid: Union[Tensor, np.ndarray],
+        dim: int = None,
+        center: bool = True,
+):
+    """
+    Computes the Real Fourier Transform (RFT) of an input array.
+
+    This is a wrapper around `dft()` with `real_in=True`, meaning it assumes the input is real-valued 
+    and only returns the Hermitian half of the transformed spectrum.
+
+    Parameters:
+        grid (Union[Tensor, np.ndarray]): The input array or tensor to be transformed.
+        dim (int, optional): The dimensionality along which the transformation is applied.
+                             If None, all dimensions are transformed.
+        center (bool, optional): If True, the zero-frequency component is shifted to the center of the spectrum.
+
+    Returns:
+        Union[Tensor, np.ndarray]: The transformed array in the frequency domain.
+    """
+    return dft(
+        grid=grid,
+        dim=dim,
+        center=center,
+        real_in=True
+    )
+
+
+def irft(
+        grid_ft: Union[Tensor, np.ndarray],
+        dim: int = None,
+        centered: bool = True,
+):
+    """
+    Computes the Inverse Real Fourier Transform (IRFT) of an input array.
+
+    This is a wrapper around `idft()` with `real_in=True`, reconstructing the original real-valued 
+    signal from its frequency domain representation.
+
+    Parameters:
+        grid_ft (Union[Tensor, np.ndarray]): The transformed input array or tensor in the frequency domain.
+        dim (int, optional): The dimensionality along which the inverse transformation is applied.
+                             If None, all dimensions are transformed.
+        centered (bool, optional): If True, assumes the zero-frequency component is centered and shifts it back.
+
+    Returns:
+        Union[Tensor, np.ndarray]: The inverse-transformed real-valued array.
+    """
+    return idft(
+        grid_ft=grid_ft,
+        dim=dim,
+        centered=centered,
+        real_in=True
+    )
+
+
+def rft2(
+        grid: Union[Tensor, np.ndarray],
+        center: bool = True,
+):
+    """
+    Computes the 2D Real Fourier Transform (RFT2) of an input array.
+
+    This function applies a real-valued Fourier transform specifically in two dimensions.
+
+    Parameters:
+        grid (Union[Tensor, np.ndarray]): The input 2D array or tensor to be transformed.
+        center (bool, optional): If True, the zero-frequency component is shifted to the center of the spectrum.
+
+    Returns:
+        Union[Tensor, np.ndarray]: The transformed 2D array in the frequency domain.
+    """
+    return dft(
+        grid=grid,
+        dim=2,
+        center=center,
+        real_in=True
+    )
+
+
+def irft2(
+        grid_ft: Union[Tensor, np.ndarray],
+        centered: bool = True,
+):
+    """
+    Computes the 2D Inverse Real Fourier Transform (IRFT2) of an input array.
+
+    This function applies an inverse real-valued Fourier transform specifically in two dimensions.
+
+    Parameters:
+        grid_ft (Union[Tensor, np.ndarray]): The transformed 2D array or tensor in the frequency domain.
+        centered (bool, optional): If True, assumes the zero-frequency component is centered and shifts it back.
+
+    Returns:
+        Union[Tensor, np.ndarray]: The inverse-transformed real-valued 2D array.
+    """
+    return idft(
+        grid_ft=grid_ft,
+        dim=2,
+        centered=centered,
+        real_in=True
+    )
 
 
 def dht(
@@ -472,9 +594,55 @@ def spectral_correlation(grid1, grid2, indices, normalize=False, norm_eps=1e-12)
         return correlation / ((norm1 * norm2).sqrt() + norm_eps)
     else:
         return grid_spectral_average(correlation, indices)
+    
+
+def get_freq(
+        grid_size: int,
+        pixel_size: float,
+        h_sym: bool = False,
+        center=True,
+        dim: int=2,
+        device="cpu"
+) -> Union[
+        Union[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]],
+        Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]
+        ]:
+    """
+    Get the inverted frequencies of the Fourier transform of a one dimentional or square grid.
+    Can generate both Torch tensors and Numpy arrays.
+    TODO Add 3D
+    :param grid_size: the side of the box
+    :param pixel_size: pixel size
+    :param h_sym: Only consider the hermitian half
+    :param dim: Number of dimensions
+    :return: two or three numpy arrays or tensors,
+                containing frequencies along the different axes
+    """
+    y_ls = torch.linspace(-grid_size // 2, grid_size // 2 - 1, grid_size, device=device)
+
+    if not center:
+        y_ls = torch.roll(y_ls, grid_size // 2)
+
+    x_ls = y_ls if not h_sym else torch.linspace(0, grid_size // 2, grid_size // 2 + 1, device=device)
+
+    if dim == 1:
+        return x_ls / (grid_size * pixel_size)
+    elif dim == 2:
+        y, x = torch.meshgrid(y_ls, x_ls, indexing='ij')
+        freq_x = x / (grid_size * pixel_size)
+        freq_y = y / (grid_size * pixel_size)
+
+        return freq_x, freq_y
+    else:
+        raise RuntimeError("Dimensionality not supported.")
 
 
-def get_spectral_indices(shape: Union[Tuple[int, int], Tuple[int, int, int]], centered=True, device='cpu'):
+def get_spectral_indices(
+    shape: Union[Tuple[int, int], Tuple[int, int, int]], 
+    centered=True,
+    maxr=None,
+    device='cpu'
+):
     h_sym = shape[-2] == shape[-1]  # Hermitian symmetric half included
     dim_2 = len(shape) == 2
 
@@ -505,7 +673,95 @@ def get_spectral_indices(shape: Union[Tuple[int, int], Tuple[int, int, int]], ce
                 indices = torch.fft.ifftshift(indices, dim=0)
             else:
                 indices = torch.fft.ifftshift(indices, dim=(0, 1))
+
+    if maxr is not None:
+        indices[maxr < indices] = int(maxr)
+
     return indices
+
+
+def whiten_fourier(grid_ft, spectrum=None, centered=True, return_power_spectrum=False, eps=1e-30):
+    """
+    Whitens a Fourier-transformed grid by normalizing its power spectrum.
+
+    This function computes the power spectrum of the input Fourier-transformed grid, inverts it,
+    and applies the inverse power spectrum to the input grid to whiten it. Optionally, a predefined
+    power spectrum can be provided for scaling.
+
+    Args:
+        grid_ft (torch.Tensor): The Fourier-transformed grid (complex-valued tensor).
+        spectrum (torch.Tensor, optional): A predefined power spectrum for scaling (default: None).
+        centered (bool, optional): Whether the Fourier space representation is centered (default: False).
+
+    Returns:
+        tuple:
+            - whitened_ft (torch.Tensor): The whitened Fourier-transformed grid.
+            - power_spectrum (torch.Tensor): The computed power spectrum of the input grid.
+    """
+    power_grid = torch.view_as_real(grid_ft).square().sum(-1)
+    idx = get_spectral_indices(grid_ft.shape, centered=centered, device=grid_ft.device)  # TODO Cache this
+    power_spectrum = grid_spectral_average(power_grid, idx)
+    power_spectrum_inv = 1 / (power_spectrum + eps)
+
+    if spectrum is not None:
+        power_spectrum_inv *= spectrum
+    power_grid_inv = spectra_to_grid(power_spectrum_inv, idx)
+    whitened_ft = grid_ft * power_grid_inv
+
+    if return_power_spectrum:
+        return whitened_ft, power_spectrum
+    else:
+        return whitened_ft
+
+def whiten_real(grid, spectrum=None, return_power_spectrum=False):
+    """
+    Whitens a real-valued spatial grid by normalizing its Fourier power spectrum.
+
+    This function first transforms the input grid to Fourier space, applies whitening using `whiten_fourier`,
+    and then transforms the result back to the spatial domain.
+
+    Args:
+        grid (torch.Tensor): The real-valued input grid.
+        spectrum (torch.Tensor, optional): A predefined power spectrum for scaling (default: None).
+        return_power_spectrum (bool, optional): Whether to return the computed power spectrum (default: False).
+
+    Returns:
+        torch.Tensor or tuple:
+            - whitened (torch.Tensor): The whitened spatial domain grid.
+            - power_spectrum (torch.Tensor, optional): The computed power spectrum (if `return_power_spectrum` is True).
+    """
+    grid_ft = dft(grid, center=False, real_in=True)
+    whitened_ft, power_spectrum = whiten_fourier(grid_ft, spectrum=spectrum, centered=False, return_power_spectrum=True)
+    whitened = idft(whitened_ft, centered=False, real_in=True)
+
+    if return_power_spectrum:
+        return whitened, power_spectrum
+    else:
+        return whitened
+
+
+def interpolate_power_spectrum(power_spectrum_freq, power_spectrum, target_freq):
+    """
+    Interpolates the power_spectrum onto new positions in target_freq.
+    
+    Uses:
+      - `np.interp` if inputs are NumPy arrays.
+      - `torch.nn.functional.grid_sample` if inputs are PyTorch tensors.
+
+    Parameters:
+    - power_spectrum_freq (array-like): 1D array/tensor of original frequencies (must be sorted).
+    - power_spectrum (array-like): 1D array/tensor of power spectrum values.
+    - target_freq (array-like): 1D array/tensor of target frequencies to interpolate onto.
+
+    Returns:
+    - Interpolated values, in the same type as the input (NumPy array or PyTorch tensor).
+    """
+    if isinstance(power_spectrum_freq, np.ndarray):
+        return np.interp(target_freq, power_spectrum_freq, power_spectrum)
+    elif isinstance(power_spectrum_freq, torch.Tensor):
+        return torch_interp(target_freq, power_spectrum_freq, power_spectrum)
+    else:
+        raise TypeError("Input must be either a NumPy array or a PyTorch tensor.")
 
 
 def spectral_resolution(ft_size, voxel_size):
