@@ -10,6 +10,8 @@ import torch
 import torch
 import torch.nn.functional as F
 
+import matplotlib.pylab as plt
+
 from voxelium.base import fast_gaussian_filter
 
 def ellipse_coordinates(a, phi, r):
@@ -25,7 +27,7 @@ def ellipse_coordinates(a, phi, r):
 
     return x, y
 
-def sampling_coordinates(a, phi, r, H, W, normalize=False):
+def sampling_ellipse_coordinates(a, phi, r, H, W, normalize=False):
     x, y = ellipse_coordinates(a, phi, r)
     y += H // 2
 
@@ -40,7 +42,7 @@ def sampling_coordinates(a, phi, r, H, W, normalize=False):
 
     return torch.stack([x, y], dim=-1)
 
-def radial_average(image, a, phi, min_r=0, max_r=None):
+def ellipse_path_average(image, a, phi, min_r=0, max_r=None):
     H, W = image.shape
     image = image.unsqueeze(0).unsqueeze(0)
 
@@ -57,7 +59,7 @@ def radial_average(image, a, phi, min_r=0, max_r=None):
 
     average = torch.zeros(num_radii, device=image.device)
     for i, r in enumerate(radii):
-        coords = sampling_coordinates(a, phi, r, H, W, normalize=True)
+        coords = sampling_ellipse_coordinates(a, phi, r, H, W, normalize=True)
         coords = coords.unsqueeze(0).unsqueeze(2)
         
         # Sample pixel intensities using grid_sample (efficient bilinear interpolation)
@@ -66,7 +68,7 @@ def radial_average(image, a, phi, min_r=0, max_r=None):
 
     return average
 
-def loss_function(params, image):
+def elipse_fit_loss_function(params, image):
     """Compute loss as intensity variance along ellipses spanning all radii."""
     a, phi = params
     total_variance = 0.0
@@ -81,7 +83,7 @@ def loss_function(params, image):
     radii = torch.linspace(r_min, r_max, num_radii, device=image.device)  # Radii to sample
 
     for r in radii:
-        coords = sampling_coordinates(a, phi, r, H, W, normalize=True)
+        coords = sampling_ellipse_coordinates(a, phi, r, H, W, normalize=True)
         coords = coords.unsqueeze(0).unsqueeze(2)
         
         # Sample pixel intensities using grid_sample (efficient bilinear interpolation)
@@ -93,7 +95,7 @@ def loss_function(params, image):
     # Return average variance over all radii
     return total_variance / len(radii)
 
-def fit_elipse(img, verbose=False):
+def fit_elipses(img, verbose=False):
     # Define global optimization parameters: a (major axis), b (minor axis), phi (angle)
     params = torch.tensor([1.0, 0.0], requires_grad=True, device="cuda")  # Start with circles
 
@@ -120,7 +122,7 @@ def fit_elipse(img, verbose=False):
         for j in range(100):
             params_old = params.clone()
             optimizer.zero_grad()
-            loss = loss_function(params, downsampled_images[-i-1])
+            loss = ellipse_loss_function(params, downsampled_images[-i-1])
             loss.backward()
             optimizer.step()
 
@@ -136,8 +138,8 @@ def fit_elipse(img, verbose=False):
 def plot_elipses(img, a, phi, num_radii=10, filter_img=None):
     fig, ax = plt.subplots(figsize=(15, 9))
 
-    if filter_img is not None:
-        img = vx.fast_gaussian_filter(img, kernel_sigma=filter_img)
+    if filter_img is not None and filter_img > 0:
+        img = fast_gaussian_filter(img, kernel_sigma=filter_img)
         # img = F.avg_pool2d(img[None, None], kernel_size=filter_img, stride=filter_img)[0, 0]
     ax.imshow(img.cpu().detach().numpy(), cmap="grey")
 
@@ -149,5 +151,5 @@ def plot_elipses(img, a, phi, num_radii=10, filter_img=None):
 
     for i in range(len(radii)):
         # coords = sampling_coordinates(torch.tensor(1.1, device=device), torch.tensor(45 *np.pi/180, device=device), radii[i], H, W).cpu().detach().numpy()
-        coords = sampling_coordinates(torch.tensor(a), torch.tensor(phi), radii[i], H, W).cpu().detach().numpy()
+        coords = sampling_ellipse_coordinates(torch.tensor(a), torch.tensor(phi), radii[i], H, W).cpu().detach().numpy()
         ax.plot(coords[:, 0], coords[:, 1], "-")

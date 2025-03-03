@@ -7,8 +7,10 @@ This is temporary, functions should be organized in separate files.
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from typing import Tuple, Union, TypeVar, List
 
+from .grid import make_gaussian_kernel
 from .torch_utils import torch_interp
 
 Tensor = TypeVar('torch.tensor')
@@ -564,7 +566,7 @@ def grid_spectral_sum(grid, indices):
 def grid_spectral_average(grid, indices):
     indices = indices.long()
     spectrum = grid_spectral_sum(grid, indices)
-    norm = grid_spectral_sum(torch.ones_like(indices).float(), indices)
+    norm = grid_spectral_sum(torch.ones_like(indices, dtype=torch.float32), indices)
     if len(spectrum.shape) == 2:  # Batch dimension
         return spectrum / norm[None, :]
     else:
@@ -679,8 +681,50 @@ def get_spectral_indices(
 
     return indices
 
+def get_white_filter(grid_ft, spectrum=None, smoothen=None, centered=True, return_power_spectrum=False, eps=1e-30):
+    """
+    Computes a whitening filter for a given Fourier-transformed grid.
 
-def whiten_fourier(grid_ft, spectrum=None, centered=True, return_power_spectrum=False, eps=1e-30):
+    This function estimates the power spectrum of the input Fourier-transformed grid, inverts it,
+    and constructs a corresponding filter that can be applied to whiten the input grid. Optionally,
+    a predefined power spectrum can be provided to modify the whitening process.
+
+    Args:
+        grid_ft (torch.Tensor): The Fourier-transformed grid (complex-valued tensor).
+        spectrum (torch.Tensor, optional): A predefined power spectrum for scaling (default: None).
+        smoothen (float, optional): Apply gaussian smoothening on power spectrum with this sigma (default: None).
+        centered (bool, optional): Whether the Fourier space representation is centered (default: True).
+        return_power_spectrum (bool, optional): Whether to return the computed power spectrum (default: False).
+        eps (float, optional): A small constant added to the power spectrum for numerical stability (default: 1e-30).
+
+    Returns:
+        torch.Tensor or tuple:
+            - filter (torch.Tensor): The whitening filter in Fourier space.
+            - power_spectrum (torch.Tensor, optional): The computed power spectrum of the input grid.
+              This is only returned if `return_power_spectrum` is set to True.
+    """
+    power_grid = torch.view_as_real(grid_ft).square().sum(-1)
+    idx = get_spectral_indices(grid_ft.shape, centered=centered, device=grid_ft.device)  # TODO Cache this
+    power_spectrum = grid_spectral_average(power_grid, idx)
+
+    if smoothen is not None and smoothen > 0:
+        kernel = make_gaussian_kernel(smoothen).to(grid_ft.device)
+        power_spectrum = F.conv1d(power_spectrum[None, None], kernel[None, None], padding='same')[0, 0]
+
+    power_spectrum_inv = 1 / (power_spectrum.sqrt() + eps)
+
+    if spectrum is not None:
+        power_spectrum_inv *= spectrum
+    filter = spectra_to_grid(power_spectrum_inv, idx)
+
+    if return_power_spectrum:
+        return filter, power_spectrum
+    else:
+        return filter
+
+
+def whiten_fourier(grid_ft, spectrum=None, smoothen=None, centered=True, return_power_spectrum=False, eps=1e-30):
+    
     """
     Whitens a Fourier-transformed grid by normalizing its power spectrum.
 
@@ -691,6 +735,7 @@ def whiten_fourier(grid_ft, spectrum=None, centered=True, return_power_spectrum=
     Args:
         grid_ft (torch.Tensor): The Fourier-transformed grid (complex-valued tensor).
         spectrum (torch.Tensor, optional): A predefined power spectrum for scaling (default: None).
+        smoothen (float, optional): Apply gaussian smoothening on power spectrum with this sigma (default: None).
         centered (bool, optional): Whether the Fourier space representation is centered (default: False).
 
     Returns:
@@ -698,22 +743,22 @@ def whiten_fourier(grid_ft, spectrum=None, centered=True, return_power_spectrum=
             - whitened_ft (torch.Tensor): The whitened Fourier-transformed grid.
             - power_spectrum (torch.Tensor): The computed power spectrum of the input grid.
     """
-    power_grid = torch.view_as_real(grid_ft).square().sum(-1)
-    idx = get_spectral_indices(grid_ft.shape, centered=centered, device=grid_ft.device)  # TODO Cache this
-    power_spectrum = grid_spectral_average(power_grid, idx)
-    power_spectrum_inv = 1 / (power_spectrum + eps)
-
-    if spectrum is not None:
-        power_spectrum_inv *= spectrum
-    power_grid_inv = spectra_to_grid(power_spectrum_inv, idx)
-    whitened_ft = grid_ft * power_grid_inv
+    filter = get_white_filter(
+        grid_ft=grid_ft, 
+        spectrum=spectrum,
+        smoothen=smoothen,
+        centered=centered, 
+        return_power_spectrum=return_power_spectrum, 
+        eps=eps
+    )
+    whitened_ft = grid_ft * filter
 
     if return_power_spectrum:
-        return whitened_ft, power_spectrum
+        return whitened_ft, filter
     else:
         return whitened_ft
 
-def whiten_real(grid, spectrum=None, return_power_spectrum=False):
+def whiten_real(grid, spectrum=None, smoothen=None, return_power_spectrum=False):
     """
     Whitens a real-valued spatial grid by normalizing its Fourier power spectrum.
 
@@ -723,6 +768,7 @@ def whiten_real(grid, spectrum=None, return_power_spectrum=False):
     Args:
         grid (torch.Tensor): The real-valued input grid.
         spectrum (torch.Tensor, optional): A predefined power spectrum for scaling (default: None).
+        smoothen (float, optional): Apply gaussian smoothening on power spectrum with this sigma (default: None).
         return_power_spectrum (bool, optional): Whether to return the computed power spectrum (default: False).
 
     Returns:
@@ -731,7 +777,8 @@ def whiten_real(grid, spectrum=None, return_power_spectrum=False):
             - power_spectrum (torch.Tensor, optional): The computed power spectrum (if `return_power_spectrum` is True).
     """
     grid_ft = dft(grid, center=False, real_in=True)
-    whitened_ft, power_spectrum = whiten_fourier(grid_ft, spectrum=spectrum, centered=False, return_power_spectrum=True)
+    whitened_ft, power_spectrum = whiten_fourier(
+        grid_ft, spectrum=spectrum, smoothen=smoothen, centered=False, return_power_spectrum=True)
     whitened = idft(whitened_ft, centered=False, real_in=True)
 
     if return_power_spectrum:
@@ -802,27 +849,27 @@ def resolution_from_fsc(fsc, res, threshold=0.5):
         return res[0]
 
 
-def get_fsc_fourier(grid1_df, grid2_df):
-    indices = get_spectral_indices(grid1_df.shape, centered=True)
+def get_fsc_fourier(grid1_df, grid2_df, centered=True):
+    indices = get_spectral_indices(grid1_df.shape, centered=centered)
     fsc = spectral_correlation(grid1_df, grid2_df, indices, normalize=True)
     return fsc[:grid1_df.shape[-1]]
 
 
 def get_fsc_real(grid1, grid2):
-    grid1_df = dft(grid1, dim=3, center=True, real_in=True)
-    grid2_df = dft(grid2, dim=3, center=True, real_in=True)
-    return get_fsc_fourier(grid1_df, grid2_df)
+    grid1_df = rft(grid1, dim=3, center=False)
+    grid2_df = rft(grid2, dim=3, center=False)
+    return get_fsc_fourier(grid1_df, grid2_df, centered=False)
 
 
-def get_power_fourier(grid_df):
-    indices = get_spectral_indices(grid_df.shape, centered=True)
-    grid_df = grid_df.abs().square()
-    return grid_spectral_average(grid_df, indices)
+def get_power_fourier(grid_df, centered=True):
+    indices = get_spectral_indices(grid_df.shape, centered=centered)
+    power = grid_df.abs().square()
+    return grid_spectral_average(power, indices)
 
 
 def get_power_real(grid):
-    grid_df = dft(grid, dim=3, center=True, real_in=True)
-    return get_power_fourier(grid_df)
+    grid_df = rft(grid, dim=3, center=False)
+    return get_power_fourier(grid_df, centered=False)
 
 
 def rescale_fourier(grid, out_sz):
