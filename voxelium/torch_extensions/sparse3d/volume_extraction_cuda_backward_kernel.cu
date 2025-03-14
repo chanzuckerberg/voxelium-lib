@@ -127,7 +127,7 @@ void volume_extraction_backward_cuda(
     dispatch_bools<2>{}(
         bargs,
         [&](auto...Bargs) {
-            AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+            AT_DISPATCH_FLOATING_TYPES(
                 input.scalar_type(),
                 "volume_extraction_backward_cuda_kernel",
                 [&] {

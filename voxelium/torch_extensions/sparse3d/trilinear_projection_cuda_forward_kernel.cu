@@ -97,7 +97,7 @@ void trilinear_projection_forward_cuda(
     dispatch_bools<1>{}(
         bargs,
         [&](auto...Bargs) {
-            AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+            AT_DISPATCH_FLOATING_TYPES(
                 input.scalar_type(),
                 "trilinear_projection_forward_cuda_kernel",
                 [&] {

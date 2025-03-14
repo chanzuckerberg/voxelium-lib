@@ -25,6 +25,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 __device__
 inline
+bool thread_index_expand(const size_t dim0, size_t &idx0)
+{
+    idx0 = blockIdx.x * blockDim.x + threadIdx.x;
+    return idx0 < dim0;
+}
+
+__device__
+inline
 bool thread_index_expand(const size_t dim0, const size_t dim1,
                                size_t &idx0,      size_t &idx1)
 {

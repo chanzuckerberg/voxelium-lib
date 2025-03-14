@@ -9,6 +9,7 @@ try:
     import voxelium_sparse3d
 except ImportError:
     print("Could not find Voxelium extension 'sparse3d'.")
+    import sys
     sys.exit(1)
 
 from voxelium.base import grid_iterator, dt_desymmetrize, dt_symmetrize
