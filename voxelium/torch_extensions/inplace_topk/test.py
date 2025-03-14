@@ -17,7 +17,7 @@ PERTURB_EPS = 1e-6
 class TestTopK(unittest.TestCase):
     def _run(self, device):
         size = 100  # Number of batches (or "rows")
-        k = 5     # Number of top elements to track
+        k = 50     # Number of top elements to track
         num_candidates = 2000  # Number of candidates per batch
 
         # Initialize module
@@ -35,23 +35,17 @@ class TestTopK(unittest.TestCase):
         candidate_indices_ = candidate_indices[None].expand((size, num_candidates))
         expected_top_indices = candidate_indices_.gather(1, order)
 
-        topk_module.sort()
+        top_values, top_indices = topk_module.get_sorted()
 
         expected_mean = candidate_values.mean(-1)
         torch.testing.assert_close(topk_module.get_mean(), expected_mean, atol=1e-5, rtol=1e-5)
 
         expected_std = candidate_values.std(-1)
-        print(topk_module.get_std())
-        print(expected_std)
         torch.testing.assert_close(topk_module.get_std(), expected_std, atol=1, rtol=1e-2)
-        
-
-        torch.testing.assert_close(topk_module.top_values, expected_top_values, atol=1e-5, rtol=1e-5)
-        torch.testing.assert_close(topk_module.top_indices, expected_top_indices)
 
         # Compare results
-        torch.testing.assert_close(topk_module.top_values, expected_top_values, atol=1e-5, rtol=1e-5)
-        torch.testing.assert_close(topk_module.top_indices, expected_top_indices)
+        torch.testing.assert_close(top_values, expected_top_values, atol=1e-5, rtol=1e-5)
+        torch.testing.assert_close(top_indices, expected_top_indices)
 
     def test_cpu(self):
         self._run("cpu")

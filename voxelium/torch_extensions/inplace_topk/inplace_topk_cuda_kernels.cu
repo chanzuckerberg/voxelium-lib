@@ -57,10 +57,12 @@ __global__ void inplace_topk_cuda_kernel(
                         min_top_index = k;
             }
         }
+        min_top_indices[i] = min_top_index;
         sums[i] += sums_;
         square_sums[i] += square_sums_;
     }
 }
+
 
 void inplace_topk_cuda(
     torch::Tensor top_values,
@@ -83,7 +85,7 @@ void inplace_topk_cuda(
     const int deviceId = top_values.device().index();
     const cudaStream_t stream = at::cuda::getCurrentCUDAStream(deviceId);
     CUDA_ERRCHK(cudaSetDevice(deviceId));
-
+    
     const dim3 threads(BLOCK_SIZE);
     const dim3 blocks((top_values.size(0) + threads.x - 1) / threads.x);
 
