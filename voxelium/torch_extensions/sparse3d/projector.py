@@ -18,7 +18,8 @@ class Projector(torch.nn.Module):
             output_norm=None,
             output_size=None,
             dtype=torch.float32,
-            index_margin=3
+            index_margin=3,
+            pixel_size=1
     ):
         super().__init__()
 
@@ -38,6 +39,7 @@ class Projector(torch.nn.Module):
         self.maxr = vx.size_to_maxr(size)
         self.dtype = dtype
         self.output_norm = output_norm
+        self.pixel_size = pixel_size
 
         mask_edge = mask_edge or 5
         mask_radius = (output_size - mask_edge) / 2 if mask_radius is None else mask_radius

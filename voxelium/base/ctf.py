@@ -151,32 +151,6 @@ class ContrastTransferFunction:
                 ctf *= torch.exp(self.c4 * n4[None])
         
         return ctf
-    
-    def bfactor_only(
-        self,
-        b_factor: Tensor,
-        grid_size: int,
-        pixel_size: float,
-        dim: float = 2,
-        h_sym: bool = False,
-        center: bool = True
-    ):  
-        freq = self._get_freq(
-            grid_size=grid_size, 
-            pixel_size=pixel_size, 
-            h_sym=h_sym, 
-            dim=dim,
-            center=center,
-            device=b_factor.device
-        )
-        # 1 Dimensions
-        if dim == 1:
-            _, n4 = freq
-            return torch.exp(-b_factor/4. * n4[None])
-        # 2 Dimensions
-        elif dim == 2:
-            _, _, _, n4 = freq
-            return torch.exp(-b_factor/4. * n4[None])
 
     @staticmethod
     @lru_cache(maxsize=5, typed=False)

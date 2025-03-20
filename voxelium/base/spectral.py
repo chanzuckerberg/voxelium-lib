@@ -948,3 +948,30 @@ def spectrum_to_grid_mean(spectrum, dim=2):
     count = torch.arange(1, spectrum.size(0) + 1, device=spectrum.device, dtype=spectrum.dtype).pow(dim)
     return (spectrum * count).sum() / count.sum()
 
+
+def bfactor_grid(
+    b_factor: Tensor,
+    grid_size: int,
+    pixel_size: float,
+    dim: float = 2,
+    h_sym: bool = False,
+    center: bool = True
+):
+    freq = get_freq(
+        grid_size=grid_size,
+        pixel_size=pixel_size,
+        h_sym=h_sym,
+        dim=dim,
+        device=b_factor.device,
+        center=center
+    )
+
+    if dim == 1:
+        n4 = freq**4
+    elif dim == 2:
+        freq_x, freq_y = freq
+        xx = freq_x**2
+        yy = freq_y**2
+        n4 = (xx + yy)**2  # Norms squared^2
+        
+    return torch.exp(-b_factor/4. * n4[None])
