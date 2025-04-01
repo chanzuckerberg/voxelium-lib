@@ -1,5 +1,25 @@
 [build-system]
-requires = ["setuptools >= 64", "wheel", "torch", "torchvision", "loguru"]
+requires = [
+    "setuptools >= 64", 
+    "wheel", 
+    "torch==2.2.*",
+    "torchvision", 
+    "loguru", 
+    "matplotlib",
+    "mrcfile", 
+    "numpy==1.*", 
+    "vtk", 
+    "scikit-learn",
+    "scipy", 
+    "tensorboard",
+    "torchvision",
+    "tqdm",
+    "starfile",
+    "umap-learn",
+    "imageio",
+    "msgpack",
+    "healpy"    
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,10 +27,11 @@ name = "Voxelium"
 version = "0.0.1"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-    { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
+    { name = "Dari Kimanius", email = "dari.kimanius@czii.org",
+      name = "Jonathan Schwartz", email = "jonathan.schwartz@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 classifiers = [
