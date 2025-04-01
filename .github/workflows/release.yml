@@ -24,6 +24,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libeigen3-dev
 
+      - name: Install CUDA Toolkit
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nvidia-cuda-toolkit
+
+      - name: Set CUDA_HOME
+        run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV          
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
