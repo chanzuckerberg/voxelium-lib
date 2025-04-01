@@ -15,7 +15,17 @@ def print_debug_msg():
     print("------------- DEBUG MODE ------------- ")
     print("-------------------------------------- ")
 
-nvcc_architectures = [] #["61", "70", "75", "80", "86", "87", "89", "90"]
+# nvcc_architectures = [] #["61", "70", "75", "80", "86", "87", "89", "90"]
+
+nvcc_archs_env = os.environ.get("NVCC_ARCHS")
+if nvcc_archs_env:
+    nvcc_architectures = nvcc_archs_env.split(',')
+else:
+    nvcc_architectures = ["61", "70", "75", "80", "86", "87", "89", "90"]
+
+nvcc_extra_compile_args = []
+for arch in nvcc_architectures:
+    nvcc_extra_compile_args += [f"-gencode=arch=compute_{arch},code=sm_{arch}"]
 
 debug = False
 _DEBUG_LEVEL = os.environ.get('VOXELIUM_DEBUG', '0')

@@ -1,0 +1,73 @@
+name: Build and Release to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+      - release-test
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11, 3.12]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Eigen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip and install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel twine
+          # Install PyTorch and torchvision; adjust the versions as needed.
+          pip install torch==2.2.0 torchvision
+
+      - name: Build Distributions
+        env:
+          # Pass your NVCC architectures here.
+          NVCC_ARCHS: "61,70,75,80,86,87,89,90"
+        run: |
+          # This will build both a source distribution and a wheel.
+          python setup.py sdist bdist_wheel
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          # Name the artifact based on the Python version.
+          name: build-${{ matrix.python-version }}
+          path: dist/
+  
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          # Downloads artifacts from all build jobs into the "builds" folder.
+          path: builds
+
+      - name: Install Twine
+        run: pip install --upgrade twine
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          # Upload all wheels and source distributions found in the downloaded artifacts.
+          twine upload builds/**/*
+
