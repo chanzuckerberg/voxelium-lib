@@ -17,6 +17,7 @@ jobs:
     env:
       CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
       NVCC_ARCHS: "61,70,75,80,86,87,89,90"
+      CUDA_HOME: "/usr/local/cuda"
     strategy:
       matrix:
         python:
