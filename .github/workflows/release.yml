@@ -12,8 +12,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: nvidia/cuda:12.6.1-cudnn-devel-ubuntu22.04
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
@@ -23,42 +21,40 @@ jobs:
 
       - name: Install Eigen
         run: |
-          apt-get update
-          apt-get install -y libeigen3-dev
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev
 
-      - name: Set CUDA_HOME
-        run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV     
+      - name: Install CUDA 12.6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg
+          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+          echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda.list
+          sudo apt-get update
+          sudo apt-get install -y cuda-12-6
+          echo "export PATH=/usr/local/cuda-12.6/bin:\$PATH" >> $GITHUB_ENV
+          echo "export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install pip
-        run: |
-          apt-get update && apt-get install -y python3 python3-pip
-          ln -s /usr/bin/python3 /usr/bin/python || true
-          ln -s /usr/bin/pip3 /usr/bin/pip || true
-
       - name: Upgrade pip and install dependencies
         run: |
           pip install --upgrade pip setuptools wheel twine
           pip install pybind11==2.13.6
-          # Install PyTorch and torchvision; adjust the versions as needed.
-          pip install torch==2.2.0 torchvision
+          pip install torch==2.2.0 torchvision "numpy<2"
 
       - name: Build Distributions
         env:
-          # Pass your NVCC architectures here.
           NVCC_ARCHS: "61,70,75,80,86,87,89,90"
         run: |
-          # This will build both a source distribution and a wheel.
           python setup.py sdist bdist_wheel
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          # Name the artifact based on the Python version.
           name: build-${{ matrix.python-version }}
           path: dist/
   
