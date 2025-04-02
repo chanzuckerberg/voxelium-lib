@@ -9,73 +9,75 @@ on:
       - release-test
   workflow_dispatch:
 
+
 jobs:
-  build:
+  build_wheels:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Install Eigen
+      
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libeigen3-dev
-
-      - name: Install CUDA 12.6
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnupg
-          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
-          echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda.list
-          sudo apt-get update
-          sudo apt-get install -y cuda-12-6
-          echo "export PATH=/usr/local/cuda-12.6/bin:\$PATH" >> $GITHUB_ENV
-          echo "export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Upgrade pip and install dependencies
-        run: |
-          pip install --upgrade pip setuptools wheel twine
-          pip install pybind11==2.13.6
-          pip install torch==2.2.0 torchvision "numpy<2"
-
-      - name: Build Distributions
+          pip install cibuildwheel==2.16.0
+          pip install pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
+      
+      # For now, skip building the CUDA extension since the standard manylinux container
+      # doesn't include CUDA. Remove or unset VOXELIUM_SKIP_EXT if you have a custom image.
+      - name: Build manylinux wheels
         env:
           NVCC_ARCHS: "61,70,75,80,86,87,89,90"
+          VOXELIUM_SKIP_EXT: "TRUE"
         run: |
-          python setup.py sdist bdist_wheel
-
-      - name: Upload Build Artifacts
+          cibuildwheel --output-dir wheelhouse .
+      
+      - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-${{ matrix.python-version }}
-          path: dist/
+          name: wheels
+          path: wheelhouse/
   
-  publish:
+  test_wheels:
     runs-on: ubuntu-latest
-    needs: build
+    needs: build_wheels
     steps:
-      - name: Download All Build Artifacts
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Download wheels artifact
         uses: actions/download-artifact@v4
         with:
-          # Downloads artifacts from all build jobs into the "builds" folder.
-          path: builds
-
-      - name: Install Twine
-        run: pip install --upgrade twine
-
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          name: wheels
+          path: wheelhouse
+      
+      - name: Install built wheel
         run: |
-          # Upload all wheels and source distributions found in the downloaded artifacts.
-          twine upload builds/**/*
+          pip install wheelhouse/*.whl
+      
+      - name: Run tests
+        run: |
+          pytest voxelium/torch_extensions/sparse3d/test.py    
+          
+          
+
+  # publish:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   steps:
+  #     - name: Download All Build Artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         # Downloads artifacts from all build jobs into the "builds" folder.
+  #         path: builds
+
+  #     - name: Install Twine
+  #       run: pip install --upgrade twine
+
+  #     - name: Publish to PyPI
+  #       env:
+  #         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+  #         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+  #       run: |
+  #         # Upload all wheels and source distributions found in the downloaded artifacts.
+  #         twine upload builds/**/*
 
