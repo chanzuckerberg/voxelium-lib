@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:12.6-devel-ubuntu22.04
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
@@ -24,13 +26,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libeigen3-dev
 
-      - name: Install CUDA Toolkit
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nvidia-cuda-toolkit
-
       - name: Set CUDA_HOME
-        run: echo "CUDA_HOME=/usr" >> $GITHUB_ENV        
+        run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV     
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -40,6 +37,7 @@ jobs:
       - name: Upgrade pip and install dependencies
         run: |
           pip install --upgrade pip setuptools wheel twine
+          pip install pybind11==2.13.6
           # Install PyTorch and torchvision; adjust the versions as needed.
           pip install torch==2.2.0 torchvision
 
