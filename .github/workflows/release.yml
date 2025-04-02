@@ -34,8 +34,14 @@ jobs:
 
       - name: Install Eigen
         run: |
-          # For manylinux (CentOS-based), use yum to install Eigen development package.
-          yum update -y && yum install -y eigen3-devel
+          if command -v microdnf >/dev/null 2>&1; then
+            microdnf update -y && microdnf install -y eigen3-devel
+          elif command -v yum >/dev/null 2>&1; then
+            yum update -y && yum install -y eigen3-devel
+          else
+            echo "No suitable package manager found. Please install eigen3-devel manually."
+            exit 1
+          fi
       
       - name: Upgrade pip and install build dependencies
         run: |
