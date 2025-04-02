@@ -13,21 +13,38 @@ on:
 jobs:
   build_wheels:
     runs-on: ubuntu-latest
+    # Set the manylinux docker image that includes CUDA 12.8
+    env:
+      CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
+      NVCC_ARCHS: "61,70,75,80,86,87,89,90"
+    strategy:
+      matrix:
+        python:
+          - version: "3.9"
+            tag: "cp39"
+          - version: "3.10"
+            tag: "cp310"
+          - version: "3.11"
+            tag: "cp311"
+          - version: "3.12"
+            tag: "cp312"
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      
-      - name: Install build dependencies
+
+      - name: Install Eigen
         run: |
-          pip install cibuildwheel==2.16.0
-          pip install pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
+          # For manylinux (CentOS-based), use yum to install Eigen development package.
+          yum update -y && yum install -y eigen3-devel
       
-      # For now, skip building the CUDA extension since the standard manylinux container
-      # doesn't include CUDA. Remove or unset VOXELIUM_SKIP_EXT if you have a custom image.
-      - name: Build manylinux wheels
+      - name: Upgrade pip and install build dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel twine
+          pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
+      
+      - name: Build manylinux wheels for Python ${{ matrix.python.version }}
         env:
-          NVCC_ARCHS: "61,70,75,80,86,87,89,90"
-          VOXELIUM_SKIP_EXT: "TRUE"
+          CIBW_BUILD: "*${{ matrix.python.tag }}*"
         run: |
           cibuildwheel --output-dir wheelhouse .
       
@@ -43,22 +60,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      
       - name: Download wheels artifact
         uses: actions/download-artifact@v4
         with:
           name: wheels
           path: wheelhouse
-      
-      - name: Install built wheel
+      - name: Install built wheel and run tests
         run: |
           pip install wheelhouse/*.whl
-      
-      - name: Run tests
-        run: |
-          pytest voxelium/torch_extensions/sparse3d/test.py    
-          
-          
+          pytest voxelium/torch_extensions/sparse3d/test.py  
 
   # publish:
   #   runs-on: ubuntu-latest
