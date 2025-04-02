@@ -7,7 +7,7 @@ requires = [
     "loguru", 
     "matplotlib",
     "mrcfile", 
-    "numpy", 
+    "numpy==1.*", 
     "vtk", 
     "scikit-learn",
     "scipy", 
