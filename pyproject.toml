@@ -7,7 +7,7 @@ requires = [
     "loguru", 
     "matplotlib",
     "mrcfile", 
-    "numpy==1.*", 
+    "numpy", 
     "vtk", 
     "scikit-learn",
     "scipy", 
@@ -30,8 +30,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-    { name = "Dari Kimanius", email = "dari.kimanius@czii.org",
-      name = "Jonathan Schwartz", email = "jonathan.schwartz@czii.org" }
+    { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 classifiers = [

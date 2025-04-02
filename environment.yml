@@ -10,7 +10,7 @@ dependencies:
   - pip:
       - matplotlib
       - mrcfile
-      - numpy==1.*
+      - numpy
       - vtk
       - scikit-learn
       - scipy
