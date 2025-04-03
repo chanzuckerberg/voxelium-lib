@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     # These environment variables are passed to cibuildwheel.
     env:
+      CIBW_MANYLINUX_X86_64_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
       CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
       CIBW_ENVIRONMENT: "NVCC_ARCHS=61,70,75,80,86,87,89,90"
     strategy:
