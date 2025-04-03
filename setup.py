@@ -96,11 +96,35 @@ if build_extensions:
 else:
     ext_modules = None
 
+# List of runtime dependencies.
+requires = [
+    "setuptools >= 64", 
+    "wheel", 
+    "torch==2.2.*",
+    "torchvision", 
+    "loguru", 
+    "matplotlib",
+    "mrcfile", 
+    "numpy==1.*", 
+    "vtk", 
+    "scikit-learn",
+    "scipy", 
+    "tensorboard",
+    "torchvision",
+    "tqdm",
+    "starfile",
+    "umap-learn",
+    "imageio",
+    "msgpack",
+    "healpy"    
+]
+
 setup(
     name='Voxelium',
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension},
-    packages=find_packages()
+    packages=find_packages(),
+    install_requires=requires,
 )
 
 if debug:
