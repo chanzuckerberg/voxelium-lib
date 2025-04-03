@@ -58,8 +58,8 @@ jobs:
         run: |
           # Install the built package from the dist folder.
           pip install dist/*.whl
-          # Run your tests (assuming you have a test suite, e.g., using pytest)
-          pytest --maxfail=1 --disable-warnings -q      
+          # Run the test script
+          python voxelium/torch_extensions/sparse3d/test.py     
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
