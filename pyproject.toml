@@ -1,25 +1,7 @@
 [build-system]
 requires = [
     "setuptools >= 64", 
-    "wheel", 
-    "torch==2.2.*",
-    "torchvision", 
-    "loguru", 
-    "matplotlib",
-    "mrcfile", 
-    "numpy==1.*", 
-    "vtk", 
-    "scikit-learn",
-    "scipy", 
-    "tensorboard",
-    "torchvision",
-    "tqdm",
-    "starfile",
-    "umap-learn",
-    "imageio",
-    "msgpack",
-    "healpy"    
-]
+    "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -33,8 +15,3 @@ authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent"
-]
