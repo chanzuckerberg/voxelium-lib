@@ -9,7 +9,7 @@ import unittest
 import torch
 
 from voxelium.base.explicit_grid_utils import size_to_maxr
-from voxelium.base.explicit_grid_utils import make_grid2d
+from voxelium.base.explicit_grid_utils import make_explicit_grid2d
 from voxelium.torch_extensions.sparse3d import *
 from voxelium.relion import eulerToMatrix
 
