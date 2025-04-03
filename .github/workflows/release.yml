@@ -18,7 +18,7 @@ jobs:
       CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
       CIBW_ENVIRONMENT: "NVCC_ARCHS=61,70,75,80,86,87,89,90"
       # Override the repair command to exclude libc10.so.
-      CIBW_REPAIR_COMMAND: "auditwheel repair --exclude-lib libc10.so --exclude-lib libtorch_cpu.so --exclude-lib libtorch_cuda.so -w {dest_dir} {wheel}"
+      # CIBW_REPAIR_COMMAND: "auditwheel repair --exclude-lib libc10.so --exclude-lib libtorch_cpu.so --exclude-lib libtorch_cuda.so -w {dest_dir} {wheel}"
     strategy:
       matrix:
         python:
@@ -42,7 +42,7 @@ jobs:
       - name: Install pip and build dependencies
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install cibuildwheel==2.16.0 pybind11==2.13.6
+          pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.*
 
       - name: Build manylinux wheels for Python ${{ matrix.python.version }}
         env:
