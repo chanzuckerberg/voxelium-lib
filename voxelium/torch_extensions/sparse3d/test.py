@@ -31,7 +31,7 @@ class TestSparseLinear(unittest.TestCase):
         bsize = 2
 
         max_r = size_to_maxr(img_size)
-        coord, mask = make_grid2d(size=img_size)
+        coord, mask = make_explicit_grid2d(size=img_size)
         coord = coord.to(device).double()
 
         p = ReconstructionLayer(img_size, input_size, dtype=torch.double, do_bias=True).to(device)
@@ -68,7 +68,7 @@ class TestSparseLinear(unittest.TestCase):
         img_size = 16
 
         max_r = size_to_maxr(img_size)
-        coord, mask = make_grid2d(size=img_size)
+        coord, mask = make_explicit_grid2d(size=img_size)
         coord = coord.to(device)
 
         p = ReconstructionLayer(img_size, input_size)
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # p = SparseVolumeReconstructionLinear(img_size, input_size)
     # p.to(device)
     # max_r = img_size // 2
-    # coord, mask = make_grid2d(size=img_size)
+    # coord, mask = make_explicit_grid2d(size=img_size)
     # coord = coord.to(device)
     #
     # ref = _make_random_ref(img_size, input_size)
