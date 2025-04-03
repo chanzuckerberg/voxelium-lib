@@ -15,7 +15,7 @@ jobs:
     # These environment variables are passed to cibuildwheel.
     env:
       CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
-      CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda NVCC_ARCHS=61,70,75,80,86,87,89,90 PATH=/usr/local/cuda/bin:$PATH"
+      CIBW_ENVIRONMENT: "NVCC_ARCHS=61,70,75,80,86,87,89,90"
     strategy:
       matrix:
         python:
@@ -31,10 +31,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install Eigen headers manually
+      - name: Install Eigen 
         run: |
-          mkdir -p /usr/local/include/eigen
-          curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz | tar xz --strip-components=1 -C /usr/local/include/eigen
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev
 
       - name: Install pip and build dependencies
         run: |
