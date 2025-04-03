@@ -30,19 +30,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Check nvcc path and version inside container
-        run: |
-          which nvcc
-          nvcc --version
-
       - name: Install Eigen headers manually
         run: |
           mkdir -p /usr/local/include/eigen
           curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz | tar xz --strip-components=1 -C /usr/local/include/eigen
       
-      - name: Upgrade pip and install build dependencies
+      - name: Install pip and build depdencies 
         run: |
-          pip install --upgrade pip setuptools wheel twine
+          python3 -m ensurepip --upgrade
+          python3 -m pip install --upgrade pip setuptools wheel twine
+          ln -sf $(which pip3) /usr/bin/pip
           pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
       
       - name: Build manylinux wheels for Python ${{ matrix.python.version }}
