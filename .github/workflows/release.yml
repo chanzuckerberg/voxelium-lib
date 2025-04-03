@@ -10,85 +10,57 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_wheels:
+  build:
     runs-on: ubuntu-latest
-    # These environment variables are passed to cibuildwheel.
-    env:
-      CIBW_MANYLINUX_X86_64_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
-      CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
-      CIBW_ENVIRONMENT: "NVCC_ARCHS=61,70,75,80,86,87,89,90"
-      # Override the repair command to exclude libc10.so.
-      # CIBW_REPAIR_COMMAND: "auditwheel repair --exclude-lib libc10.so --exclude-lib libtorch_cpu.so --exclude-lib libtorch_cuda.so -w {dest_dir} {wheel}"
     strategy:
       matrix:
-        python:
-          - version: "3.9"
-            tag: "cp39"
-          - version: "3.10"
-            tag: "cp310"
-          - version: "3.11"
-            tag: "cp311"
-          - version: "3.12"
-            tag: "cp312"
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install Eigen 
+      - name: Install Eigen
         run: |
           sudo apt-get update
           sudo apt-get install -y libeigen3-dev
 
-      - name: Install pip and build dependencies
+      - name: Install CUDA 12.6
         run: |
-          pip install --upgrade pip setuptools wheel
-          pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.*
+          sudo apt-get update
+          sudo apt-get install -y gnupg
+          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+          echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda.list
+          sudo apt-get update
+          sudo apt-get install -y cuda-12-6
+          echo "export PATH=/usr/local/cuda-12.6/bin:\$PATH" >> $GITHUB_ENV
+          echo "export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
-      - name: Build manylinux wheels for Python ${{ matrix.python.version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip and install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel twine
+          pip install pybind11==2.13.6
+          pip install torch==2.2.0 torchvision "numpy<2"
+
+      - name: Build Distributions
         env:
-          CIBW_BUILD: "*${{ matrix.python.tag }}*"
+          NVCC_ARCHS: "61,70,75,80,86,87,89,90"
         run: |
-          cibuildwheel --output-dir wheelhouse .
+          python setup.py sdist bdist_wheel
 
-      - name: Upload wheels artifact
+      - name: Run tests on built package
+        run: |
+          # Install the built package from the dist folder.
+          pip install dist/*.whl
+          # Run your tests (assuming you have a test suite, e.g., using pytest)
+          pytest --maxfail=1 --disable-warnings -q      
+
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.python.version }}
-          path: wheelhouse/
-  
-  test_wheels:
-    runs-on: ubuntu-latest
-    needs: build_wheels
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Download wheels artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels
-          path: wheelhouse
-      - name: Install built wheel and run tests
-        run: |
-          pip install wheelhouse/*.whl
-          pytest voxelium/torch_extensions/sparse3d/test.py  
-
-  # publish:
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   steps:
-  #     - name: Download All Build Artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         # Downloads artifacts from all build jobs into the "builds" folder.
-  #         path: builds
-
-  #     - name: Install Twine
-  #       run: pip install --upgrade twine
-
-  #     - name: Publish to PyPI
-  #       env:
-  #         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-  #         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-  #       run: |
-  #         # Upload all wheels and source distributions found in the downloaded artifacts.
-  #         twine upload builds/**/*
+          name: build-${{ matrix.python-version }}
+          path: dist/
