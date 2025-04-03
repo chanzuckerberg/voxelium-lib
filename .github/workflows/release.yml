@@ -10,83 +10,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_wheels:
+  check_nvcc:
     runs-on: ubuntu-latest
-    # Set the manylinux docker image that includes CUDA 12.8
-    env:
-      CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
-      CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda NVCC_ARCHS=61,70,75,80,86,87,89,90 PATH=/usr/local/cuda/bin:${PATH}"
-    strategy:
-      matrix:
-        python:
-          - version: "3.9"
-            tag: "cp39"
-          - version: "3.10"
-            tag: "cp310"
-          - version: "3.11"
-            tag: "cp311"
-          - version: "3.12"
-            tag: "cp312"
+    container:
+      image: sameli/manylinux_2_34_x86_64_cuda_12.8
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Install Eigen
+      - name: Check nvcc path and version inside container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libeigen3-dev
-      
-      - name: Upgrade pip and install build dependencies
-        run: |
-          pip install --upgrade pip setuptools wheel twine
-          pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
-      
-      - name: Build manylinux wheels for Python ${{ matrix.python.version }}
-        env:
-          CIBW_BUILD: "*${{ matrix.python.tag }}*"
-        run: |
-          cibuildwheel --output-dir wheelhouse .
-      
-      - name: Upload wheels artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.python.version }}
-          path: wheelhouse/
-  
-  test_wheels:
-    runs-on: ubuntu-latest
-    needs: build_wheels
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Download wheels artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels
-          path: wheelhouse
-      - name: Install built wheel and run tests
-        run: |
-          pip install wheelhouse/*.whl
-          pytest voxelium/torch_extensions/sparse3d/test.py  
-
-  # publish:
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   steps:
-  #     - name: Download All Build Artifacts
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         # Downloads artifacts from all build jobs into the "builds" folder.
-  #         path: builds
-
-  #     - name: Install Twine
-  #       run: pip install --upgrade twine
-
-  #     - name: Publish to PyPI
-  #       env:
-  #         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-  #         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-  #       run: |
-  #         # Upload all wheels and source distributions found in the downloaded artifacts.
-  #         twine upload builds/**/*
+          which nvcc
+          nvcc --version
 
