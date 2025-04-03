@@ -45,6 +45,8 @@ jobs:
           pip install --upgrade pip setuptools wheel twine
           pip install pybind11==2.13.6
           pip install torch==2.2.0 torchvision "numpy<2"
+          # Install Test Runner as well 
+          pip install pytest 
 
       - name: Build Distributions
         env:
