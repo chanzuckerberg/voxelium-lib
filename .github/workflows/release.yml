@@ -38,9 +38,7 @@ jobs:
 
       - name: Install pip and build dependencies
         run: |
-          python3 -m ensurepip --upgrade
-          python3 -m pip install --upgrade pip setuptools wheel twine
-          ln -sf $(which pip3) /usr/bin/pip
+          pip install --upgrade pip setuptools wheel twine
           pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
 
       - name: Build manylinux wheels for Python ${{ matrix.python.version }}
