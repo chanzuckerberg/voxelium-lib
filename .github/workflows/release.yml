@@ -12,9 +12,10 @@ on:
 jobs:
   build_wheels:
     runs-on: ubuntu-latest
-    # Set the manylinux docker image that includes CUDA 12.8
-    container:
-          image: sameli/manylinux_2_34_x86_64_cuda_12.8
+    # These environment variables are passed to cibuildwheel.
+    env:
+      CIBW_DOCKER_IMAGE: sameli/manylinux_2_34_x86_64_cuda_12.8
+      CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda NVCC_ARCHS=61,70,75,80,86,87,89,90 PATH=/usr/local/cuda/bin:$PATH"
     strategy:
       matrix:
         python:
@@ -34,20 +35,20 @@ jobs:
         run: |
           mkdir -p /usr/local/include/eigen
           curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz | tar xz --strip-components=1 -C /usr/local/include/eigen
-      
-      - name: Install pip and build depdencies 
+
+      - name: Install pip and build dependencies
         run: |
           python3 -m ensurepip --upgrade
           python3 -m pip install --upgrade pip setuptools wheel twine
           ln -sf $(which pip3) /usr/bin/pip
           pip install cibuildwheel==2.16.0 pybind11==2.13.6 torch==2.2.0 torchvision "numpy<2"
-      
+
       - name: Build manylinux wheels for Python ${{ matrix.python.version }}
         env:
           CIBW_BUILD: "*${{ matrix.python.tag }}*"
         run: |
           cibuildwheel --output-dir wheelhouse .
-      
+
       - name: Upload wheels artifact
         uses: actions/upload-artifact@v4
         with:
