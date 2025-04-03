@@ -15,3 +15,23 @@ authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
+dependencies = [
+    "setuptools>=64", 
+    "wheel", 
+    "torch==2.2.*",
+    "torchvision", 
+    "loguru", 
+    "matplotlib",
+    "mrcfile", 
+    "numpy==1.*", 
+    "vtk", 
+    "scikit-learn",
+    "scipy", 
+    "tensorboard",
+    "tqdm",
+    "starfile",
+    "umap-learn",
+    "imageio",
+    "msgpack",
+    "healpy"
+]
