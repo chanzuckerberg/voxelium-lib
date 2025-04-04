@@ -9,7 +9,7 @@ import unittest
 import torch
 
 from voxelium.base.explicit_grid_utils import size_to_maxr
-from voxelium.base.explicit_grid_utils import make_grid2d
+from voxelium.base.explicit_grid_utils import make_explicit_grid2d
 from voxelium.torch_extensions.sparse3d import *
 from voxelium.relion import eulerToMatrix
 
@@ -31,7 +31,7 @@ class TestSparseLinear(unittest.TestCase):
         bsize = 2
 
         max_r = size_to_maxr(img_size)
-        coord, mask = make_grid2d(size=img_size)
+        coord, mask = make_explicit_grid2d(size=img_size)
         coord = coord.to(device).double()
 
         p = ReconstructionLayer(img_size, input_size, dtype=torch.double, do_bias=True).to(device)
@@ -68,7 +68,7 @@ class TestSparseLinear(unittest.TestCase):
         img_size = 16
 
         max_r = size_to_maxr(img_size)
-        coord, mask = make_grid2d(size=img_size)
+        coord, mask = make_explicit_grid2d(size=img_size)
         coord = coord.to(device)
 
         p = ReconstructionLayer(img_size, input_size)

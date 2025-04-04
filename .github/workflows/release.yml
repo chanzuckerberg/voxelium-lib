@@ -1,0 +1,68 @@
+name: Build and Release to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+      - release-test
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Eigen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libeigen3-dev
+
+      - name: Install CUDA 12.6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg
+          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+          echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda.list
+          sudo apt-get update
+          sudo apt-get install -y cuda-12-6
+          echo "export PATH=/usr/local/cuda-12.6/bin:\$PATH" >> $GITHUB_ENV
+          echo "export LD_LIBRARY_PATH=/usr/local/cuda-12.6/lib64:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache-dependency-path: "pyproject.toml"
+          cache: "pip"
+
+      - name: Upgrade pip and install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel twine
+          pip install pybind11==2.13.6
+          pip install torch==2.2.0 torchvision "numpy<2"
+
+      - name: Build Distributions
+        env:
+          NVCC_ARCHS: "61,70,75,80,86,87,89,90"
+        run: |
+          python setup.py sdist bdist_wheel
+
+      # - name: Run tests on built package
+      #   run: |
+      #     # Install the built package from the dist folder.
+      #     pip install dist/*.whl
+      #     # Run the test script
+      #     python voxelium/torch_extensions/sparse3d/test.py     
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.python-version }}
+          path: dist/
