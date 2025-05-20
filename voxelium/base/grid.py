@@ -234,10 +234,12 @@ def trim_to_threshold(grid, threshold=0.):
     return grid[l[0]:h[0], l[1]:h[1], l[2]:h[2]]
 
 
-def smooth_circular_mask(grid_size, radius, thickness):
+def smooth_circular_mask(grid_size, radius, thickness, center_shift=(0,0)):
     """ Mask radius is center of edge """
     ls = torch.linspace(-grid_size / 2, grid_size / 2, grid_size)
-    r2 = torch.sum(torch.stack(torch.meshgrid(ls, ls, indexing="ij"), -1).square(), -1)
+    ls_y = ls - center_shift[1]
+    ls_x = ls - center_shift[0]
+    r2 = torch.sum(torch.stack(torch.meshgrid(ls_x, ls_y, indexing="ij"), -1).square(), -1)
     r = r2.sqrt()
     band_mask = (radius <= r) & (r <= radius + thickness)
     r_band_mask = r[band_mask]
@@ -381,7 +383,7 @@ def gaussian_blur(grid, sigma):
 
 
 def make_gaussian_kernel(sigma):
-    ks = round(sigma * 3)
+    ks = round(sigma * 9)
     ks = max(ks, 3)
     ks += 1 - ks % 2  # Make odd
     ts = torch.linspace(-ks / 2, ks / 2, ks)

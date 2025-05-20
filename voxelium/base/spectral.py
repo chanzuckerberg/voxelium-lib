@@ -8,7 +8,7 @@ This is temporary, functions should be organized in separate files.
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Tuple, Union, TypeVar, List
+from typing import Tuple, Union, TypeVar, List, Sequence
 
 from .grid import make_gaussian_kernel
 from .torch_utils import torch_interp
@@ -37,10 +37,7 @@ def _dt_set_axes(shape, dim):
     if dim is None:
         return tuple((np.arange(len(shape)).astype(int)))
 
-    if len(shape) > dim:
-        return tuple((np.arange(dim).astype(int)) + 1)
-    else:
-        return tuple((np.arange(dim).astype(int)))
+    return tuple((-np.arange(1, dim+1)[::-1].astype(int)))
 
 
 class rfftn(torch.autograd.Function):
@@ -598,88 +595,120 @@ def spectral_correlation(grid1, grid2, indices, normalize=False, norm_eps=1e-12)
         return grid_spectral_average(correlation, indices)
     
 
+import torch
+from typing import Tuple, Union
+
+# Assume get_freq is defined as follows:
 def get_freq(
-        grid_size: int,
-        pixel_size: float,
-        h_sym: bool = False,
-        center=True,
-        dim: int=2,
-        device="cpu"
-) -> Union[
-        Union[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor, Tensor]],
-        Union[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]
-        ]:
+    shape: Tuple[int, ...],
+    pixel_size: Union[float, Tuple[float, ...]] = 1.0,
+    rfft: bool = False,
+    center: bool = True,
+    device: str = "cpu"
+) -> Union[torch.Tensor, Tuple[torch.Tensor, ...]]:
     """
-    Get the inverted frequencies of the Fourier transform of a one dimentional or square grid.
-    Can generate both Torch tensors and Numpy arrays.
-    TODO Add 3D
-    :param grid_size: the side of the box
-    :param pixel_size: pixel size
-    :param h_sym: Only consider the hermitian half
-    :param dim: Number of dimensions
-    :return: two or three numpy arrays or tensors,
-                containing frequencies along the different axes
+    Compute frequency coordinates (in cycles per unit length) for an N-dimensional grid using PyTorch.
+    Supports non-cubic (or non-square) shapes. If `rfft` is True, the function computes the frequency
+    axis for the last dimension using torch.fft.rfftfreq (assuming Hermitian symmetry on that axis),
+    while all other dimensions use torch.fft.fftfreq (with an optional FFT shift if center is True).
+
+    Parameters:
+      shape (Tuple[int, ...]): A tuple specifying the size along each dimension in the spatial domain.
+      pixel_size (float or Tuple[float, ...]): Physical pixel spacing. If given as a float,
+                    that spacing is used for all dimensions; if a tuple, it must match the shape.
+      rfft (bool): If True, compute the frequency axis for the last dimension using rfftfreq.
+      center (bool): If True, full frequency axes (computed via fftfreq) are shifted so that zero frequency is centered.
+                     For the rfft axis, the natural ordering (nonnegative frequencies) is preserved.
+      device (str): The PyTorch device for the output tensors.
+
+    Returns:
+      For 1D input, returns a single PyTorch tensor representing the frequency axis.
+      For an N-D input (N > 1), returns a tuple of PyTorch tensors representing the frequency grids
+      for each dimension with "ij" indexing.
     """
-    y_ls = torch.linspace(-grid_size // 2, grid_size // 2 - 1, grid_size, device=device)
-
-    if not center:
-        y_ls = torch.roll(y_ls, grid_size // 2)
-
-    x_ls = y_ls if not h_sym else torch.linspace(0, grid_size // 2, grid_size // 2 + 1, device=device)
-
-    if dim == 1:
-        return x_ls / (grid_size * pixel_size)
-    elif dim == 2:
-        y, x = torch.meshgrid(y_ls, x_ls, indexing='ij')
-        freq_x = x / (grid_size * pixel_size)
-        freq_y = y / (grid_size * pixel_size)
-
-        return freq_x, freq_y
+    ndim = len(shape)
+    
+    # Broadcast pixel_size if necessary.
+    if not isinstance(pixel_size, (tuple, list)):
+        pixel_size = (float(pixel_size),) * ndim
+    elif len(pixel_size) != ndim:
+        raise ValueError("pixel_size must be a single number or a tuple with length equal to the number of dimensions.")
+    
+    freq_axes = []
+    # When rfft=True, only the last dimension uses rfftfreq.
+    for i, (n, d_i) in enumerate(zip(shape, pixel_size)):
+        if rfft and (i == ndim - 1):
+            f = torch.fft.rfftfreq(n, d=d_i)
+        else:
+            f = torch.fft.fftfreq(n, d=d_i)
+            if center:
+                f = torch.fft.fftshift(f)
+        freq_axes.append(f.to(device))
+    
+    # Create the N-dimensional frequency grid with "ij" indexing.
+    grids = torch.meshgrid(*freq_axes, indexing="ij")
+    
+    if ndim == 1:
+        return grids[0]
     else:
-        raise RuntimeError("Dimensionality not supported.")
+        return tuple(grids)
 
 
 def get_spectral_indices(
-    shape: Union[Tuple[int, int], Tuple[int, int, int]], 
-    centered=True,
-    maxr=None,
-    device='cpu'
-):
-    h_sym = shape[-2] == shape[-1]  # Hermitian symmetric half included
-    dim_2 = len(shape) == 2
+    shape: Tuple[int, ...],
+    center: bool = True,
+    maxr: Union[int, None] = None,
+    rfft: bool = False,
+    device: str = 'cpu'
+) -> torch.Tensor:
+    """
+    Computes spectral (radial) indices for an N-dimensional frequency grid.
+    Uses get_freq to generate the per-axis frequency grids.
+    The radial index (the floored Euclidean distance) is computed at each grid point.
+    Only the DC component will be be zero.
+    The indices are scaled by the minimum shape dimension.
+    
 
-    if shape[0] % 2 == 0:
-        ls = torch.linspace(-(shape[0] // 2), shape[0] // 2 - 1, shape[0], device=device)
-    else:
-        ls = torch.linspace(-(shape[0] // 2), shape[0] // 2, shape[0], device=device)
-    x_ls = ls if h_sym else torch.linspace(0, shape[-1] - 1, shape[-1], device=device)
+    Parameters:
+      shape (Tuple[int, ...]): The shape of the spatial-domain tensor.
+      center (bool): Whether full FFT axes are centered.
+      maxr (int or None): Optionally clip the index values to this maximum.
+      rfft (bool): If True, the last axis is computed with torch.fft.rfftfreq (assuming Hermitian symmetry).
+      device (str): The device for torch tensors.
+      
+    Returns:
+      indices (torch.Tensor): An integer tensor where each value is the floored radial frequency index.
+    """
+    # Obtain the frequency grids (in cycles per unit length) using get_freq.
+    grids = get_freq(shape, pixel_size=1, rfft=rfft, center=center, device=device)
+    
+    # Ensure we have a tuple of tensors (even for the 1D case).
+    if not isinstance(grids, (tuple, list)):
+        grids = (grids,)
+    
+    # Scale each frequency grid to convert from cycles per unit length to discrete bin-like values.
+    # This scaling factor is the product of the number of points along that axis and the sample spacing.
+    min_scale = min(shape)
+    scaled_grids = []
+    for g in grids:
+        scaled_grids.append(g * min_scale)
+    
+    # Compute the squared Euclidean distance at each grid point.
+    r2 = sum(g**2 for g in scaled_grids)
+    
+    # Take the square root, floor the result, and cast to an integer type.
+    indices = torch.floor(torch.sqrt(r2)).long()
 
-    if dim_2:
-        assert shape[1] == shape[0] or \
-               (shape[1] - 1) * 2 == shape[0] or \
-               (shape[1] - 1) * 2 + 1 == shape[0]
-        r2 = torch.sum(torch.stack(torch.meshgrid(ls, x_ls, indexing="ij"), -1).square(), -1)
-        indices = torch.floor(r2.sqrt()).long()
-    else:
-        assert shape[2] == shape[1] == shape[0] or \
-               (shape[2] - 1) * 2 == shape[1] == shape[0] or \
-               (shape[2] - 1) * 2 + 1 == shape[1] == shape[0]
-        r2 = torch.sum(torch.stack(torch.meshgrid(ls, ls, x_ls, indexing="ij"), -1).square(), -1)
-        indices = torch.floor(r2.sqrt()).long()
-
-    if not centered:
-        if h_sym:
-            indices = torch.fft.ifftshift(indices)
-        else:
-            if dim_2:
-                indices = torch.fft.ifftshift(indices, dim=0)
-            else:
-                indices = torch.fft.ifftshift(indices, dim=(0, 1))
-
+    # Only DC should be zero
+    mask = (r2 > 0) & (indices == 0)
+    indices[mask] = 1
+    
+    # Optionally clip indices to a maximum value.
     if maxr is not None:
-        indices[maxr < indices] = int(maxr)
-
+        indices = torch.clamp(indices, max=maxr)
+    
     return indices
+
 
 def get_white_filter(grid_ft, spectrum=None, smoothen=None, centered=True, return_power_spectrum=False, eps=1e-30):
     """
@@ -704,7 +733,7 @@ def get_white_filter(grid_ft, spectrum=None, smoothen=None, centered=True, retur
               This is only returned if `return_power_spectrum` is set to True.
     """
     power_grid = torch.view_as_real(grid_ft).square().sum(-1)
-    idx = get_spectral_indices(grid_ft.shape, centered=centered, device=grid_ft.device)  # TODO Cache this
+    idx = get_spectral_indices(grid_ft.shape, center=centered, device=grid_ft.device)  # TODO Cache this
     power_spectrum = grid_spectral_average(power_grid, idx)
 
     if smoothen is not None and smoothen > 0:
@@ -850,7 +879,7 @@ def resolution_from_fsc(fsc, res, threshold=0.5):
 
 
 def get_fsc_fourier(grid1_df, grid2_df, centered=True):
-    indices = get_spectral_indices(grid1_df.shape, centered=centered)
+    indices = get_spectral_indices(grid1_df.shape, center=centered).to(grid1_df.device)
     fsc = spectral_correlation(grid1_df, grid2_df, indices, normalize=True)
     return fsc[:grid1_df.shape[-1]]
 
@@ -862,7 +891,7 @@ def get_fsc_real(grid1, grid2):
 
 
 def get_power_fourier(grid_df, centered=True):
-    indices = get_spectral_indices(grid_df.shape, centered=centered)
+    indices = get_spectral_indices(grid_df.shape, center=centered)
     power = grid_df.abs().square()
     return grid_spectral_average(power, indices)
 
@@ -951,24 +980,22 @@ def spectrum_to_grid_mean(spectrum, dim=2):
 
 def bfactor_grid(
     b_factor: Tensor,
-    grid_size: int,
+    shape: Tuple[int, ...],
     pixel_size: float,
-    dim: float = 2,
-    h_sym: bool = False,
+    rfft: bool = False,
     center: bool = True
 ):
     freq = get_freq(
-        grid_size=grid_size,
+        shape=shape,
         pixel_size=pixel_size,
-        h_sym=h_sym,
-        dim=dim,
+        rfft=rfft,
         device=b_factor.device,
         center=center
     )
 
-    if dim == 1:
+    if len(shape) == 1:
         n4 = freq**4
-    elif dim == 2:
+    elif len(shape) == 2:
         freq_x, freq_y = freq
         xx = freq_x**2
         yy = freq_y**2

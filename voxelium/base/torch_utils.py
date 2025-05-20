@@ -364,3 +364,51 @@ def pca_dim_reduction(x, n_components=2, subsample=None, raise_oom=False):
             transformed_data = transformed_data.to(x.device)
 
     return transformed_data
+
+
+
+def torch_interp1d(x, xp, fp, left=None, right=None):
+    """
+    A PyTorch implementation of numpy.interp for 1-D tensors.
+    Args:
+      x:  tensor of query points, shape (N,)
+      xp: 1-D tensor of known x-coordinates, must be sorted ascending, shape (M,)
+      fp: tensor of values at xp, same shape as xp (or broadcastable), shape (M,)
+      left:  value to use for x < xp[0]  (default: fp[0])
+      right: value to use for x > xp[-1] (default: fp[-1])
+    Returns:
+      tensor of interpolated values, shape (N,)
+    """
+    # ensure inputs are 1-D
+    x = x.flatten()
+    xp = xp.flatten()
+    fp = fp.flatten()
+    
+    # where would each x land in xp?
+    idx = torch.searchsorted(xp, x)  # returns indices in [0..M]
+    
+    # clamp indices to valid interpolation range [1..M-1]
+    idx_lo = idx.clamp(min=1, max=xp.numel()-1)
+    
+    x0 = xp[idx_lo - 1]
+    x1 = xp[idx_lo    ]
+    y0 = fp[idx_lo - 1]
+    y1 = fp[idx_lo    ]
+    
+    # compute fraction (x - x0)/(x1 - x0), safely
+    denom = x1 - x0
+    # avoid division by zero if xp has duplicates
+    denom = torch.where(denom == 0, torch.tensor(1., device=denom.device), denom)
+    frac = (x - x0) / denom
+    
+    y = y0 + frac * (y1 - y0)
+    
+    # handle out-of-bounds
+    if left is None:
+        left = fp[0]
+    if right is None:
+        right = fp[-1]
+    y = torch.where(x < xp[0], torch.as_tensor(left, device=y.device), y)
+    y = torch.where(x > xp[-1], torch.as_tensor(right, device=y.device), y)
+    
+    return y
