@@ -58,7 +58,7 @@ nvcc_extra_compile_args += cxx_extra_compile_args
 
 
 voxelium_sparse3d_ext = CUDAExtension(
-    name='voxelium_sparse3d',
+    name='voxelium.torch_extensions.sparse3d._C',
     sources=[
         'voxelium/torch_extensions/sparse3d/pybind.cpp',
         'voxelium/torch_extensions/sparse3d/trilinear_projection.cpp',
@@ -77,7 +77,7 @@ voxelium_sparse3d_ext = CUDAExtension(
 )
 
 inplace_topk_ext = CUDAExtension(
-    name='voxelium_topk',
+    name='voxelium.torch_extensions.inplace_topk._C',
     sources=[
         'voxelium/torch_extensions/inplace_topk/inplace_topk.cpp',
         'voxelium/torch_extensions/inplace_topk/inplace_topk_cpu_kernels.cpp',
