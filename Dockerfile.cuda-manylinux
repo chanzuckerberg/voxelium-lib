@@ -1,16 +1,17 @@
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Install GCC 11 and dev tools
-RUN yum install -y centos-release-scl \
- && yum install -y devtoolset-11-gcc devtoolset-11-gcc-c++ \
- && ln -sf /opt/rh/devtoolset-11/root/usr/bin/gcc /usr/local/bin/gcc \
- && ln -sf /opt/rh/devtoolset-11/root/usr/bin/g++ /usr/local/bin/g++
+# Enable gcc-toolset-11 (AppStream module on AlmaLinux 8)
+RUN dnf -y install dnf-plugins-core && \
+    dnf -y module enable gcc-toolset-11 && \
+    dnf -y install gcc-toolset-11 && \
+    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/gcc /usr/local/bin/gcc && \
+    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/g++ /usr/local/bin/g++
 
-# Set GCC 11 as the compiler
+# Add environment variables so it's used by build tools
 ENV CC=/usr/local/bin/gcc
 ENV CXX=/usr/local/bin/g++
 
-# Install CUDA 12.6 (use correct repo)
+# Install CUDA 12.6
 RUN yum install -y yum-utils \
  && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo \
  && yum -y install cuda-toolkit-12-6 cuda-nvcc-12-6 \
