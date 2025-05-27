@@ -1,0 +1,17 @@
+FROM quay.io/pypa/manylinux_2_28_x86_64
+
+# Install CUDA 12.6 runtime and toolkit
+RUN yum install -y yum-utils && \
+    yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-rhel7.repo && \
+    yum clean all && \
+    yum -y install \
+        cuda-toolkit-12-6 \
+        cuda-12-6 \
+        cuda-nvcc-12-6 \
+        cuda-cudart-12-6 \
+        cuda-cudart-devel-12-6 && \
+    yum clean all
+
+ENV CUDA_HOME=/usr/local/cuda-12.6
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
