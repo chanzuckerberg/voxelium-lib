@@ -1,22 +1,18 @@
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Enable gcc-toolset-11 (AppStream module on AlmaLinux 8)
-RUN dnf -y install dnf-plugins-core && \
-    dnf -y module enable gcc-toolset-11 && \
-    dnf -y install gcc-toolset-11 && \
-    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/gcc /usr/local/bin/gcc && \
-    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/g++ /usr/local/bin/g++
+# Install base dev tools and GCC (GCC 13 is default in this image)
+RUN yum update -y && \
+    yum install -y gcc gcc-c++ make wget curl yum-utils
 
-# Add environment variables so it's used by build tools
-ENV CC=/usr/local/bin/gcc
-ENV CXX=/usr/local/bin/g++
+# Install CUDA 12.6 (compatible with RHEL 8 / AlmaLinux 8)
+RUN yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
+    yum clean all && \
+    yum -y install \
+        cuda-toolkit-12-6 \
+        cuda-nvcc-12-6 && \
+    yum clean all
 
-# Install CUDA 12.6
-RUN yum install -y yum-utils \
- && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo \
- && yum -y install cuda-toolkit-12-6 cuda-nvcc-12-6 \
- && yum clean all
-
+# Set environment variables so PyTorch and nvcc can find CUDA
 ENV CUDA_HOME=/usr/local/cuda-12.6
 ENV PATH=$CUDA_HOME/bin:$PATH
 ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
