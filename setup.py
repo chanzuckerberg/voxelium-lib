@@ -48,6 +48,9 @@ nvcc_extra_compile_args = []
 for arch in nvcc_architectures:
     nvcc_extra_compile_args += [f"-gencode=arch=compute_{arch},code=sm_{arch}"]
 
+# Add allow-unsupported-compiler to fix GCC 14+ compatibility with nvcc
+nvcc_extra_compile_args.append("-allow-unsupported-compiler")
+
 if debug:
     print_debug_msg()
     cxx_extra_compile_args += ["-g", "-O0", "-DDEBUG=%s" % _DEBUG_LEVEL, "-UNDEBUG"]
