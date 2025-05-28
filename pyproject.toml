@@ -13,7 +13,7 @@ version = "0.0.1"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license_files = ["LICENSE"]
 authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
