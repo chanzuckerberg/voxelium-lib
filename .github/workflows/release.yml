@@ -34,20 +34,20 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install cibuildwheel
 
-      - name: Download LibTorch
-        run: |
-          mkdir -p third_party
-          curl -L https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.2%2Bcu121.zip -o libtorch.zip
-          unzip libtorch.zip -d third_party/
-          LIBTORCH_DIR=$(find third_party -maxdepth 1 -type d -name 'libtorch*' | head -n 1)
-          if [[ "$LIBTORCH_DIR" != "third_party/libtorch" ]]; then
-            mv "$LIBTORCH_DIR" third_party/libtorch
-          fi
+      # - name: Download LibTorch
+      #   run: |
+      #     mkdir -p third_party
+      #     curl -L https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.2%2Bcu121.zip -o libtorch.zip
+      #     unzip libtorch.zip -d third_party/
+      #     LIBTORCH_DIR=$(find third_party -maxdepth 1 -type d -name 'libtorch*' | head -n 1)
+      #     if [[ "$LIBTORCH_DIR" != "third_party/libtorch" ]]; then
+      #       mv "$LIBTORCH_DIR" third_party/libtorch
+      #     fi
       
-      - name: Prune LibTorch
-        run: |
-          rm -rf third_party/libtorch/lib/*.a
-          rm -rf third_party/libtorch/share
+      # - name: Prune LibTorch
+      #   run: |
+      #     rm -rf third_party/libtorch/lib/*.a
+      #     rm -rf third_party/libtorch/share
 
       - name: Build manylinux wheels using custom image
         run: |
