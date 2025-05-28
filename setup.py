@@ -95,7 +95,6 @@ setup(
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension},
     license='GPL-2.0-or-later',
-    license_files=['LICENSE'],
     author='Dari Kimanius',
     author_email='dari.kimanius@czii.org',
     description='Voxelium - a powerful tool for volumetric processing with CUDA support.',
