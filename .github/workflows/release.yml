@@ -40,7 +40,9 @@ jobs:
           curl -L https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.2%2Bcu121.zip -o libtorch.zip
           unzip libtorch.zip -d third_party/
           LIBTORCH_DIR=$(find third_party -maxdepth 1 -type d -name 'libtorch*' | head -n 1)
-          mv "$LIBTORCH_DIR" third_party/libtorch
+          if [[ "$LIBTORCH_DIR" != "third_party/libtorch" ]]; then
+            mv "$LIBTORCH_DIR" third_party/libtorch
+          fi
 
       - name: Build manylinux wheels using custom image
         run: |
