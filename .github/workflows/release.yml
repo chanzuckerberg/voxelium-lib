@@ -39,7 +39,8 @@ jobs:
           mkdir -p third_party
           curl -L https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.2%2Bcu121.zip -o libtorch.zip
           unzip libtorch.zip -d third_party/
-          mv third_party/libtorch-cxx11-abi-shared-with-deps-2.2.2+cu121 third_party/libtorch
+          LIBTORCH_DIR=$(find third_party -maxdepth 1 -type d -name 'libtorch*' | head -n 1)
+          mv "$LIBTORCH_DIR" third_party/libtorch
 
       - name: Build manylinux wheels using custom image
         run: |
@@ -57,7 +58,7 @@ jobs:
         with:
           name: wheels-${{ matrix.python-version }}
           path: wheelhouse/
-
+      
       # Uncomment below for PyPI publish
       # - name: Publish to PyPI
       #   if: startsWith(github.ref, 'refs/tags/v')
@@ -76,3 +77,8 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+
+
+
+
