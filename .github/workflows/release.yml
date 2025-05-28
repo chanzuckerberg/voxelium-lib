@@ -58,7 +58,7 @@ jobs:
           CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda-12.6 NVCC_ARCHS=61,70,75,80,86,87,89,90"
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
           CIBW_ARCHS: "x86_64"
-          CIBW_REPAIR_WHEEL_COMMAND: "auditwheel repair -w {dest_dir} {wheel}"
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
