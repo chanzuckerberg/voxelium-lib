@@ -7,54 +7,40 @@ Setup module for Voxelium
 import os
 import sys
 from setuptools import setup, find_packages
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension
+from torch.utils.cpp_extension import CUDAExtension, BuildExtension, library_paths
 
 def print_debug_msg():
     print("-------------------------------------- ")
     print("------------- DEBUG MODE ------------- ")
     print("-------------------------------------- ")
 
+# GPU architecture
 nvcc_archs_env = os.environ.get("NVCC_ARCHS")
-if nvcc_archs_env:
-    nvcc_architectures = nvcc_archs_env.split(',')
-else:
-    nvcc_architectures = ["61", "70", "75", "80", "86", "87", "89", "90"]
+nvcc_architectures = nvcc_archs_env.split(',') if nvcc_archs_env else [
+    "61", "70", "75", "80", "86", "87", "89", "90"
+]
 
+# Compilation flags
 debug = bool(os.environ.get("VOXELIUM_DEBUG"))
 build_extensions = not os.environ.get("VOXELIUM_SKIP_EXT")
 
-sys.path.insert(0, f'{os.path.dirname(__file__)}/voxelium')
+project_root = os.path.join(os.path.realpath(os.path.dirname(__file__)), "voxelium")
+sys.path.insert(0, project_root)
 
-project_root = os.path.join(os.path.realpath(os.path.dirname(__file__)),  "voxelium")
-libtorch_dir = os.path.abspath("third_party/libtorch")
+include_dirs = [project_root]
+library_dirs = library_paths(cuda=True)
+libraries = ["torch", "torch_cuda", "c10"]
+extra_link_args = ["-Wl,-rpath,$ORIGIN"]  # avoid bundling system libs
 
-include_dirs = [
-    project_root,
-    os.path.join(libtorch_dir, "include"),
-    os.path.join(libtorch_dir, "include", "torch", "csrc", "api", "include")
-]
-
-library_dirs = [os.path.join(libtorch_dir, "lib")]
-libraries = ["torch", "torch_cpu", "c10"]
-
-cxx_extra_compile_args = []
-nvcc_extra_compile_args = []
-
-for arch in nvcc_architectures:
-    nvcc_extra_compile_args += [f"-gencode=arch=compute_{arch},code=sm_{arch}"]
-
-nvcc_extra_compile_args.append("-allow-unsupported-compiler")
+cxx_extra_compile_args = ["-g", "-O0", "-DDEBUG=1", "-UNDEBUG"] if debug else ["-DNDEBUG", "-O3"]
+nvcc_extra_compile_args = [f"-gencode=arch=compute_{arch},code=sm_{arch}" for arch in nvcc_architectures]
+nvcc_extra_compile_args += ["-allow-unsupported-compiler"] + cxx_extra_compile_args
 
 if debug:
     print_debug_msg()
-    cxx_extra_compile_args += ["-g", "-O0", f"-DDEBUG={os.environ.get('VOXELIUM_DEBUG', '0')}", "-UNDEBUG"]
     nvcc_extra_compile_args += ["-G", "-lineinfo"]
-else:
-    cxx_extra_compile_args += ["-DNDEBUG", "-O3"]
 
-nvcc_extra_compile_args += cxx_extra_compile_args
-extra_link_args = ["-Wl,-rpath,$ORIGIN/lib"]
-
+# CUDA Extensions
 voxelium_sparse3d_ext = CUDAExtension(
     name='voxelium.torch_extensions.sparse3d._C',
     sources=[
@@ -92,8 +78,9 @@ inplace_topk_ext = CUDAExtension(
     extra_link_args=extra_link_args,
 )
 
-ext_modules = [voxelium_sparse3d_ext, inplace_topk_ext] if build_extensions else None
+ext_modules = [voxelium_sparse3d_ext, inplace_topk_ext] if build_extensions else []
 
+# Python dependencies
 requires = [
     "setuptools >= 64", "wheel", "torch==2.2.*", "torchvision", "loguru",
     "matplotlib", "mrcfile", "numpy==1.*", "vtk", "scikit-learn", "scipy",
@@ -102,13 +89,10 @@ requires = [
 
 setup(
     name='Voxelium',
-    ext_modules=ext_modules,
-    cmdclass={'build_ext': BuildExtension},
+    version='0.0.1',
     packages=find_packages(),
     install_requires=requires,
-    package_data={"voxelium": ["lib/*.so*"]},
-    include_package_data=True,
+    ext_modules=ext_modules,
+    cmdclass={'build_ext': BuildExtension},
+    zip_safe=False,
 )
-
-if debug:
-    print_debug_msg()
