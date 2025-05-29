@@ -80,25 +80,10 @@ inplace_topk_ext = CUDAExtension(
 
 ext_modules = [voxelium_sparse3d_ext, inplace_topk_ext] if build_extensions else []
 
-# Python dependencies
-requires = [
-    "setuptools >= 64", "wheel", "torch==2.2.*", "torchvision", "loguru",
-    "matplotlib", "mrcfile", "numpy==1.*", "vtk", "scikit-learn", "scipy",
-    "tensorboard", "tqdm", "starfile", "umap-learn", "imageio", "msgpack", "healpy"
-]
-
 setup(
     name='Voxelium',
     version='0.0.1',
     packages=find_packages(),
-    install_requires=requires,
     ext_modules=ext_modules,
-    cmdclass={'build_ext': BuildExtension},
-    license='GPL-2.0-or-later',
-    author='Dari Kimanius',
-    author_email='dari.kimanius@czii.org',
-    description='Voxelium - a powerful tool for volumetric processing with CUDA support.',
-    long_description=open("README.md").read(),
-    long_description_content_type="text/markdown",
-    zip_safe=False,
+    cmdclass={'build_ext': BuildExtension}
 )

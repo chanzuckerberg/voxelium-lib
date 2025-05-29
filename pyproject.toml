@@ -4,11 +4,9 @@ requires = [
     "wheel",
     "pybind11",
     "torch==2.2.2",
+    "torchvision==0.17.2"
 ]
 build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-license-files = []
 
 [project]
 name = "Voxelium"
@@ -22,7 +20,6 @@ authors = [
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 dependencies = [
-    "torchvision", 
     "loguru", 
     "matplotlib",
     "mrcfile", 
@@ -39,3 +36,13 @@ dependencies = [
     "healpy"
 ]
 
+[tool.setuptools]
+license-files = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
