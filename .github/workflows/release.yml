@@ -44,26 +44,7 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
           CIBW_ARCHS: "x86_64"
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            auditwheel repair
-                --exclude libtorch.so
-                --exclude libtorch_cpu.so
-                --exclude libtorch_cuda.so
-                --exclude libtorch_python.so
-                --exclude libc10.so
-                --exclude libc10_cuda.so
-                --exclude libnvrtc.so
-                --exclude libnvToolsExt.so
-                --exclude libcublas.so
-                --exclude libcublasLt.so
-                --exclude libcufft.so
-                --exclude libcurand.so
-                --exclude libcusolver.so
-                --exclude libcusparse.so
-                --exclude libnvidia-ml.so
-                --exclude libcudart.so
-                --exclude libcudnn.so
-                --exclude libnccl.so
-                -w {dest_dir} {wheel}
+            auditwheel rename --plat manylinux_2_17_x86_64 -w {dest_dir} {wheel}
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
