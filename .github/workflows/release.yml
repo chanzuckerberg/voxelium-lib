@@ -43,13 +43,14 @@ jobs:
           CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda-12.6 NVCC_ARCHS=61,70,75,80,86,87,89,90"
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
           CIBW_ARCHS: "x86_64"
-          # CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            auditwheel repair -w {dest_dir} {wheel} 
-            --exclude libtorch.so 
-            --exclude libtorch_cpu.so 
-            --exclude libtorch_cuda.so 
+            auditwheel repair
+            --exclude libtorch.so
+            --exclude libtorch_cpu.so
+            --exclude libtorch_cuda.so
             --exclude libc10.so
+            --exclude libtorch_python.so
+            -w {dest_dir} {wheel}
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
