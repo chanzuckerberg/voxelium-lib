@@ -82,7 +82,7 @@ ext_modules = [voxelium_sparse3d_ext, inplace_topk_ext] if build_extensions else
 
 setup(
     name='Voxelium',
-    version='0.0.1',
+    version='0.0.1a',
     packages=find_packages(),
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExtension}
