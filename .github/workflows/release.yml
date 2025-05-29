@@ -34,21 +34,6 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install cibuildwheel
 
-      # - name: Download LibTorch
-      #   run: |
-      #     mkdir -p third_party
-      #     curl -L https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.2%2Bcu121.zip -o libtorch.zip
-      #     unzip libtorch.zip -d third_party/
-      #     LIBTORCH_DIR=$(find third_party -maxdepth 1 -type d -name 'libtorch*' | head -n 1)
-      #     if [[ "$LIBTORCH_DIR" != "third_party/libtorch" ]]; then
-      #       mv "$LIBTORCH_DIR" third_party/libtorch
-      #     fi
-      
-      # - name: Prune LibTorch
-      #   run: |
-      #     rm -rf third_party/libtorch/lib/*.a
-      #     rm -rf third_party/libtorch/share
-
       - name: Build manylinux wheels using custom image
         run: |
           cibuildwheel --platform linux --output-dir wheelhouse
@@ -58,7 +43,7 @@ jobs:
           CIBW_ENVIRONMENT: "CUDA_HOME=/usr/local/cuda-12.6 NVCC_ARCHS=61,70,75,80,86,87,89,90"
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
           CIBW_ARCHS: "x86_64"
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
+          # CIBW_REPAIR_WHEEL_COMMAND_LINUX: ""
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
@@ -80,7 +65,7 @@ jobs:
         run: |
           python -m pip install --upgrade twine
           twine check wheelhouse/*
-          
+
       - name: Publish to TestPyPI
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
