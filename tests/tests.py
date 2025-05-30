@@ -6,3 +6,9 @@ def test_sparse3d():
 
 def test_topk():
     topk_test.main()
+
+
+if __name__ == "__main__":
+    test_sparse3d()
+    test_topk()
+    print("All tests passed successfully.")
