@@ -2,13 +2,15 @@
 requires = [
     "setuptools>=64",
     "wheel",
-    "pybind11"
+    "pybind11",
+    "torch==2.2.2",
+    "torchvision==0.17.2"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "Voxelium"
-version = "0.0.1a2"
+version = "0.0.1a3"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -19,7 +21,7 @@ authors = [
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 dependencies = [
     "torch==2.2.2",
-    "torchvision==0.17.2"
+    "torchvision==0.17.2",
     "loguru", 
     "matplotlib",
     "mrcfile", 
