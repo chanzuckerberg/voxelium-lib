@@ -89,7 +89,7 @@ requires = [
 
 setup(
     name='Voxelium',
-    version='0.0.1a2',
+    version='0.0.1a',
     packages=find_packages(),
     install_requires=requires,
     ext_modules=ext_modules,
