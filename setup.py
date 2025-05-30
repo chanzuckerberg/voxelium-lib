@@ -36,12 +36,6 @@ cxx_extra_compile_args = ["-g", "-O0", "-DDEBUG=1", "-UNDEBUG"] if debug else ["
 nvcc_extra_compile_args = [f"-gencode=arch=compute_{arch},code=sm_{arch}" for arch in nvcc_architectures]
 nvcc_extra_compile_args += ["-allow-unsupported-compiler"] + cxx_extra_compile_args
 
-# Match ABI version with PyTorch to avoid symbol resolution issues
-import torch
-abi_flag = f"-D_GLIBCXX_USE_CXX11_ABI={int(torch._C._GLIBCXX_USE_CXX11_ABI)}"
-cxx_extra_compile_args.append(abi_flag)
-nvcc_extra_compile_args.append(abi_flag)
-
 if debug:
     print_debug_msg()
     nvcc_extra_compile_args += ["-G", "-lineinfo"]
@@ -95,7 +89,7 @@ requires = [
 
 setup(
     name='Voxelium',
-    version='0.0.1a6',
+    version='0.0.1a7',
     packages=find_packages(),
     install_requires=requires,
     ext_modules=ext_modules,
