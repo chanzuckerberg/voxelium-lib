@@ -1,6 +1,6 @@
 import unittest
-import voxelium.torch_extensions.sparse3d.test as sparse_test
-import voxelium.torch_extensions.inplace_topk.test as topk_test
+import voxelium.torch_extensions.sparse3d.test_sparse3d as sparse_test
+import voxelium.torch_extensions.inplace_topk.test_inplace_topk as topk_test
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()

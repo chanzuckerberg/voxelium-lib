@@ -47,4 +47,7 @@ test = ["pytest"]
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q"
-testpaths = ["tests"]
+testpaths = [
+    "voxelium/torch_extensions/sparse3d",
+    "voxelium/torch_extensions/inplace_topk"
+]
