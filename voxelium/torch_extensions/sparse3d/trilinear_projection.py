@@ -6,7 +6,7 @@ Python API for the 3D reconstruction layer
 import torch
 
 try:
-    import voxelium_sparse3d
+    from . import _C
 except ImportError:
     print("Could not find Voxelium extension 'sparse3d'.")
     import sys
@@ -24,7 +24,7 @@ class TrilinearProjection(torch.autograd.Function):
     ):
         assert grid3d_index.shape[0] == grid3d_index.shape[1] == grid3d_index.shape[2] * 2 - 1
 
-        output = voxelium_sparse3d.trilinear_projection_forward(
+        output = _C.trilinear_projection_forward(
             input=input,
             weight=weight,
             bias=torch.empty([0, 0], dtype=weight.dtype).to(weight.device) if bias is None else bias,
@@ -55,7 +55,7 @@ class TrilinearProjection(torch.autograd.Function):
             = ctx.saved_tensors
 
         grad_input, grad_weight, grad_bias, backprop_weight, grad_rot_matrix = \
-            voxelium_sparse3d.trilinear_projection_backward(
+            _C.trilinear_projection_backward(
                 input=input,
                 grid2d_grad=grad_output.contiguous(),
                 weight=weight,

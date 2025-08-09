@@ -1,0 +1,22 @@
+FROM quay.io/pypa/manylinux_2_28_x86_64
+
+# Install dev tools and GCC 11
+RUN yum update -y && \
+    yum install -y gcc gcc-c++ make wget curl yum-utils && \
+    yum install -y epel-release && \
+    yum install -y gcc-toolset-11 && \
+    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/gcc /usr/local/bin/gcc && \
+    ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/g++ /usr/local/bin/g++
+
+ENV CC=/usr/local/bin/gcc
+ENV CXX=/usr/local/bin/g++
+
+# Install CUDA 12.6
+RUN yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
+    yum clean all && \
+    yum -y install cuda-toolkit-12-6 cuda-nvcc-12-6 && \
+    yum clean all
+
+ENV CUDA_HOME=/usr/local/cuda-12.6
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH

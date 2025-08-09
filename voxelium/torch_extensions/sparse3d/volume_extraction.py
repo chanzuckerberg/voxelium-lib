@@ -6,7 +6,7 @@ Python API for the 3D reconstruction layer
 import torch
 
 try:
-    import voxelium_sparse3d
+    from . import _C
 except ImportError:
     print("Could not find Voxelium extension 'sparse3d'.")
     import sys
@@ -22,7 +22,7 @@ class VolumeExtraction(torch.autograd.Function):
 
         assert grid3d_index.shape[0] == grid3d_index.shape[1] == grid3d_index.shape[2] * 2 - 1
 
-        output = voxelium_sparse3d.volume_extraction_forward(
+        output = _C.volume_extraction_forward(
             input=input,
             weight=weight,
             bias=torch.empty([0, 0], dtype=weight.dtype).to(weight.device) if bias is None else bias,
@@ -38,7 +38,7 @@ class VolumeExtraction(torch.autograd.Function):
         input, weight, bias, grid3d_index = ctx.saved_tensors
 
         grad_input, grad_weight, grad_bias = \
-            voxelium_sparse3d.volume_extraction_backward(
+            _C.volume_extraction_backward(
                 input=input,
                 weight=weight,
                 bias=torch.empty([0, 0], dtype=weight.dtype).to(weight.device) if bias is None else bias,

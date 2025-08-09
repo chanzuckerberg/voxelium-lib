@@ -1,20 +1,57 @@
 [build-system]
-requires = ["setuptools >= 64", "wheel", "torch", "torchvision"]
+requires = [
+    "setuptools>=64",
+    "wheel",
+    "pybind11",
+    "torch==2.2.2",
+    "torchvision==0.17.2"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "Voxelium"
-version = "0.0.1"
+version = "0.0.1a11"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
-requires-python = ">=3.11"
-license = { text = "MIT" }
+requires-python = ">=3.9"
+license = { text = "GPL-2.0-or-later" }
 authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent"
+dependencies = [
+    "torch==2.2.2",
+    "torchvision==0.17.2",
+    "loguru", 
+    "matplotlib",
+    "mrcfile", 
+    "numpy==1.*", 
+    "vtk", 
+    "scikit-learn",
+    "scipy", 
+    "tensorboard",
+    "tqdm",
+    "starfile",
+    "umap-learn",
+    "imageio",
+    "msgpack",
+    "healpy"
+]
+
+[tool.setuptools]
+license-files = []
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["voxelium", "voxelium.*"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "voxelium/torch_extensions/sparse3d",
+    "voxelium/torch_extensions/inplace_topk"
 ]

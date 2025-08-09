@@ -6,7 +6,7 @@ Python API for the Inplace TopK extensions
 import torch
 
 try:
-    import voxelium_topk
+    from . import _C
 except ImportError:
     print("Could not find Voxelium extension 'TopK'.")
     import sys
@@ -41,7 +41,7 @@ class InplaceTopK(torch.nn.Module):
     @torch.no_grad()
     def forward(self, candidate_values, candidate_indices):
         self.sums_count += candidate_indices.size(0)
-        voxelium_topk.inplace_topk(
+        _C.inplace_topk(
             top_values=self.top_values,
             top_indices=self.top_indices,
             min_top_indices=self.min_top_indices,
