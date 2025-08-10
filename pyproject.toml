@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Voxelium"
-version = "0.0.1"
+version = "0.0.2"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
 requires-python = ">=3.9"
