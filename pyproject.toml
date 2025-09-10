@@ -4,7 +4,7 @@ requires = [
     "wheel",
     "pybind11",
     "torch==2.8.0",
-    "torchvision==0.17.2"
+    "torchvision"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -21,7 +21,7 @@ authors = [
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 dependencies = [
     "torch==2.8.0",
-    "torchvision==0.17.2",
+    "torchvision",
     "loguru", 
     "matplotlib",
     "mrcfile", 
