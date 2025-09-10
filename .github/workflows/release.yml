@@ -2,11 +2,8 @@ name: Build manylinux Wheels with CUDA
 
 on:
   push:
-    tags:
-      - "v*"
-    branches:
-      - main
-      # - release-test
+    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -21,6 +18,12 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Free disk space (optional but helpful)
+        run: |
+          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache || true
+          docker system prune -af || true
+          df -h
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -40,12 +43,23 @@ jobs:
         env:
           CIBW_BUILD: ${{ matrix.python-version }}-*
           CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
+          CIBW_ARCHS: "x86_64"
+          CIBW_BUILD_VERBOSITY: "3"
+          # Environment inside the build container
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
-            PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu121
-          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
-          CIBW_ARCHS: "x86_64"
+            # Use CPU index DURING BUILD ISOLATION to avoid huge CUDA downloads
+            PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
+            PIP_NO_CACHE_DIR=1
+            TMPDIR=/project/.tmp
+          # Pre-build diagnostics + ensure TMPDIR exists
+          CIBW_BEFORE_BUILD: |
+            mkdir -p /project/.tmp
+            echo "Disk before pip:"; df -h; df -i || true
+            du -sh /tmp/* 2>/dev/null || true
+          # Repair while excluding PyTorch shared libs (they're provided by torch)
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -66,7 +80,7 @@ jobs:
         run: |
           python -m pip install --upgrade twine
           twine check wheelhouse/*
-            
+
       - name: Publish to PyPI
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -75,8 +89,8 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      
-      # Uncomment below for Test PyPI publish
+
+      # Uncomment below for TestPyPI publish
       # - name: Publish to TestPyPI
       #   if: startsWith(github.ref, 'refs/tags/v')
       #   run: |

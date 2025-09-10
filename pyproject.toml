@@ -1,16 +1,17 @@
 [build-system]
+# Build isolation deps (small): use CPU wheels to avoid multi-GB CUDA downloads.
 requires = [
     "setuptools>=64",
     "wheel",
     "pybind11",
-    "torch==2.8.0",
-    "torchvision"
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "Voxelium"
-version = "0.0.2"
+version = "0.0.3"
 description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -19,16 +20,18 @@ authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
+
+# Runtime deps (what users get). Keep CUDA-capable torch here.
 dependencies = [
     "torch==2.8.0",
     "torchvision",
-    "loguru", 
+    "loguru",
     "matplotlib",
-    "mrcfile", 
-    "numpy==1.*", 
-    "vtk", 
+    "mrcfile",
+    "numpy==1.*",
+    "vtk",
     "scikit-learn",
-    "scipy", 
+    "scipy",
     "tensorboard",
     "tqdm",
     "starfile",
