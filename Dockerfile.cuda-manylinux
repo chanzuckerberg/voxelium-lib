@@ -1,8 +1,5 @@
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Use bash so we can use for/do/done loops reliably
-SHELL ["/bin/bash", "-lc"]
-
 # Install dev tools and GCC 11
 RUN yum update -y && \
     yum install -y gcc gcc-c++ make wget curl yum-utils && \
@@ -21,24 +18,5 @@ RUN yum-config-manager --add-repo https://developer.download.nvidia.com/compute/
     yum clean all
 
 ENV CUDA_HOME=/usr/local/cuda-12.6
-ENV PATH=${CUDA_HOME}/bin:${PATH}
-ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
-
-# Make pip quieter and avoid caching
-ENV PIP_NO_CACHE_DIR=1
-ENV PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Preinstall GPU Torch 2.8.0 + torchvision for the interpreters we’ll build wheels for
-# Adjust CPYTHONS if you change the matrix in your workflow.
-ARG CPYTHONS="cp39-cp39 cp310-cp310 cp311-cp311 cp312-cp312"
-RUN set -euo pipefail; \
-    for PY in ${CPYTHONS}; do \
-        echo ">>> Installing torch for /opt/python/${PY}"; \
-        /opt/python/${PY}/bin/python -m pip install --upgrade pip wheel setuptools; \
-        # Torch 2.8.0 includes CUDA support wheels and pulls the needed CUDA libs
-        CUDA_HOME=${CUDA_HOME} LD_LIBRARY_PATH=${LD_LIBRARY_PATH} \
-        /opt/python/${PY}/bin/python -m pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0; \
-        # Optional: helpful for building extensions
-        /opt/python/${PY}/bin/python -m pip install --no-cache-dir pybind11; \
-    done && \
-    rm -rf /root/.cache /var/cache/yum/* /tmp/*
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
