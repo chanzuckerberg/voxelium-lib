@@ -1,9 +1,10 @@
 [build-system]
-# Keep build isolation lean: no torch/torchvision here
 requires = [
     "setuptools>=64",
     "wheel",
-    "pybind11"
+    "pybind11",
+    "torch==2.8.0",
+    "torchvision"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -18,18 +19,16 @@ authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
-
-# Runtime deps only. Users can install CUDA wheels via PyTorch's index if desired.
 dependencies = [
     "torch==2.8.0",
-    "torchvision==0.23.0",
-    "loguru",
+    "torchvision",
+    "loguru", 
     "matplotlib",
-    "mrcfile",
-    "numpy>=1.22",   # compatible with PyTorch 2.8
-    "vtk",
+    "mrcfile", 
+    "numpy==1.*", 
+    "vtk", 
     "scikit-learn",
-    "scipy",
+    "scipy", 
     "tensorboard",
     "tqdm",
     "starfile",
