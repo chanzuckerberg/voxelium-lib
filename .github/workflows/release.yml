@@ -2,8 +2,10 @@ name: Build manylinux Wheels with CUDA
 
 on:
   push:
-    tags: ["v*"]
-    branches: [main]
+    tags:
+      - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -19,13 +21,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # Optional but helpful to free runner disk
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache || true
-          docker system prune -af || true
-          df -h
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -39,41 +34,34 @@ jobs:
           pip install cibuildwheel
 
       - name: Build manylinux wheels using custom image
-        # Dump cibuildwheel logs on failure to aid debugging
-        run: |
-          set -e
-          cibuildwheel --platform linux --output-dir wheelhouse || {
-            echo "=== Dumping cibuildwheel logs from cache ==="
-            find /home/runner/.cache/cibuildwheel -type f -name '*.log' -print -exec tail -n +1 {} \; || true
-            exit 1
-          }
+        run: cibuildwheel --platform linux --output-dir wheelhouse
         env:
-          # cibuildwheel selection
+          # Which CPython ABIs to build
           CIBW_BUILD: ${{ matrix.python-version }}-*
-          CIBW_SKIP: "*-musllinux_*"             # 'pp*' removed; PyPy not enabled
+          # We’re not building musllinux here
+          CIBW_SKIP: "*-musllinux_*"
+          # Use your custom CUDA-capable manylinux image
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
+          # Arch
           CIBW_ARCHS: x86_64
+          # Extra logging
           CIBW_BUILD_VERBOSITY: "3"
 
-          # IMPORTANT: Force CPU wheels during build isolation
-          # These are seen by the isolation env inside cibuildwheel containers.
-          PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
-          PIP_EXTRA_INDEX_URL: https://pypi.org/simple
-          PIP_NO_CACHE_DIR: "1"
-
-          # Environment inside the build container
+          # Build-time environment (visible to your setup.py)
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
-            TMPDIR=/project/.tmp
 
-          # Pre-build diagnostics and tmp dir
+          # (Optional) keep downloads smaller in CI:
+          # 1) install CPU-only torch/torchvision in the build venv
+          # 2) tell setup to NOT link libtorch_cuda when building wheels
           CIBW_BEFORE_BUILD: |
-            mkdir -p /project/.tmp
-            echo "Disk before pip:"; df -h; df -i || true
-            du -sh /tmp/* 2>/dev/null || true
+            python -m pip install --upgrade pip
+            pip install --extra-index-url https://download.pytorch.org/whl/cpu \
+              "torch==2.8.0" "torchvision==0.23.0"
+            export VOXELIUM_LINK_TORCH_CUDA=0
 
-          # Don’t vendor PyTorch shared libs into your wheel
+          # Don’t vendor the giant libtorch* libs into your wheel
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -84,32 +72,32 @@ jobs:
             --exclude libc10_cuda.so
             -w {dest_dir} {wheel}
 
-      - name: Upload built wheels
+      - name: Upload built wheels (per-ABI)
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.python-version }}
           path: wheelhouse/
 
-      - name: Validate wheel with twine
+      - name: Validate wheels with twine
         run: |
           python -m pip install --upgrade twine
           twine check wheelhouse/*
 
       - name: Publish to PyPI
         if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          python -m pip install --upgrade twine
-          twine upload wheelhouse/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          python -m pip install --upgrade twine
+          twine upload wheelhouse/*
 
-      # Uncomment for TestPyPI
+      # For TestPyPI, uncomment below and add TEST_PYPI_API_TOKEN secret
       # - name: Publish to TestPyPI
       #   if: startsWith(github.ref, 'refs/tags/v')
-      #   run: |
-      #     python -m pip install --upgrade twine
-      #     twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/* --verbose
       #   env:
       #     TWINE_USERNAME: __token__
       #     TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      #   run: |
+      #     python -m pip install --upgrade twine
+      #     twine upload --repository-url https://test.pypi.org/legacy/ wheelhouse/* --verbose

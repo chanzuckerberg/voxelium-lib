@@ -1,102 +1,112 @@
 #!/usr/bin/env python
-
 import os
 import sys
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import (
     CUDAExtension,
     BuildExtension,
-    library_paths,
     include_paths,
+    library_paths,
 )
 
-def print_debug_msg():
-    print("-------------------------------------- ")
-    print("------------- DEBUG MODE ------------- ")
-    print("-------------------------------------- ")
+# --------------------- helpers & env toggles ---------------------
+def _bool_env(name: str, default="0") -> bool:
+    val = os.environ.get(name, default)
+    if val is None:
+        return False
+    return str(val).strip().lower() not in ("", "0", "false", "no")
 
-# GPU architecture
-nvcc_archs_env = os.environ.get("NVCC_ARCHS")
-nvcc_architectures = nvcc_archs_env.split(",") if nvcc_archs_env else [
-    "61", "70", "75", "80", "86", "87", "89", "90"
-]
+DEBUG = _bool_env("VOXELIUM_DEBUG", "0")
+SKIP_EXT = _bool_env("VOXELIUM_SKIP_EXT", "0")
+# Set this to 0 in CI when you preinstall CPU torch to keep downloads small
+LINK_TORCH_CUDA = _bool_env("VOXELIUM_LINK_TORCH_CUDA", "1")
 
-# Compilation flags
-debug = bool(os.environ.get("VOXELIUM_DEBUG"))
-build_extensions = not os.environ.get("VOXELIUM_SKIP_EXT")
+NVCC_ARCHS = os.environ.get("NVCC_ARCHS", "61,70,75,80,86,87,89,90")
+NVCC_ARCH_LIST = [a.strip() for a in NVCC_ARCHS.split(",") if a.strip()]
 
-project_root = os.path.join(os.path.realpath(os.path.dirname(__file__)), "voxelium")
-sys.path.insert(0, project_root)
+# --------------------- paths ---------------------
+PROJECT_ROOT = os.path.realpath(os.path.dirname(__file__))
+SRC_ROOT = os.path.join(PROJECT_ROOT, "voxelium")
+sys.path.insert(0, SRC_ROOT)
 
-# Resolve CUDA home (works both in CI and on dev machines)
-CUDA_HOME = (
-    os.environ.get("CUDA_HOME")
-    or os.environ.get("CUDA_PATH")
-    or "/usr/local/cuda"
-)
+# Respect CUDA_HOME/CUDA_PATH if present (optional – fine if missing with CPU torch)
+CUDA_HOME = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
 
-# Torch helper paths (NEW: use cuda_home=…, not cuda=…)
-include_dirs = [project_root] + include_paths(cuda_home=CUDA_HOME)
-library_dirs = library_paths(cuda_home=CUDA_HOME)
+TORCH_INC_DIRS = list(include_paths())        # torch headers
+TORCH_LIB_DIRS = list(library_paths())        # torch libs
 
-# Link options
-libraries = ["torch", "torch_cuda", "c10"]
-extra_link_args = ["-Wl,-rpath,$ORIGIN"]  # avoid bundling system libs
+CUDA_INC_DIRS = []
+CUDA_LIB_DIRS = []
+if CUDA_HOME and os.path.isdir(CUDA_HOME):
+    inc = os.path.join(CUDA_HOME, "include")
+    lib64 = os.path.join(CUDA_HOME, "lib64")
+    if os.path.isdir(inc):
+        CUDA_INC_DIRS.append(inc)
+    if os.path.isdir(lib64):
+        CUDA_LIB_DIRS.append(lib64)
 
-cxx_extra_compile_args = ["-g", "-O0", "-DDEBUG=1", "-UNDEBUG"] if debug else ["-DNDEBUG", "-O3"]
-nvcc_extra_compile_args = [f"-gencode=arch=compute_{arch},code=sm_{arch}" for arch in nvcc_architectures]
-nvcc_extra_compile_args += ["-allow-unsupported-compiler"] + cxx_extra_compile_args
+INCLUDE_DIRS = [SRC_ROOT] + TORCH_INC_DIRS + CUDA_INC_DIRS
+LIBRARY_DIRS = TORCH_LIB_DIRS + CUDA_LIB_DIRS
 
-if debug:
-    print_debug_msg()
-    nvcc_extra_compile_args += ["-G", "-lineinfo"]
+# --------------------- link & compile flags ---------------------
+LIBRARIES = ["torch", "c10"] + (["torch_cuda"] if LINK_TORCH_CUDA else [])
+EXTRA_LINK_ARGS = ["-Wl,-rpath,$ORIGIN", "-Wl,--as-needed"]
 
-# CUDA Extensions
-voxelium_sparse3d_ext = CUDAExtension(
-    name="voxelium.torch_extensions.sparse3d._C",
-    sources=[
-        "voxelium/torch_extensions/sparse3d/pybind.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_forward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_backward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_forward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_backward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/volume_extraction.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_forward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_backward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_forward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_backward_kernel.cu",
-    ],
-    include_dirs=include_dirs,
-    library_dirs=library_dirs,
-    libraries=libraries,
-    extra_compile_args={"cxx": cxx_extra_compile_args, "nvcc": nvcc_extra_compile_args},
-    extra_link_args=extra_link_args,
-)
+CXX_FLAGS = ["-g", "-O0", "-DDEBUG=1", "-UNDEBUG"] if DEBUG else ["-DNDEBUG", "-O3"]
+NVCC_FLAGS = [f"-gencode=arch=compute_{sm},code=sm_{sm}" for sm in NVCC_ARCH_LIST]
+NVCC_FLAGS += ["-allow-unsupported-compiler"] + CXX_FLAGS
+if DEBUG:
+    NVCC_FLAGS += ["-G", "-lineinfo"]
 
-inplace_topk_ext = CUDAExtension(
-    name="voxelium.torch_extensions.inplace_topk._C",
-    sources=[
-        "voxelium/torch_extensions/inplace_topk/inplace_topk.cpp",
-        "voxelium/torch_extensions/inplace_topk/inplace_topk_cpu_kernels.cpp",
-        "voxelium/torch_extensions/inplace_topk/inplace_topk_cuda_kernels.cu",
-        "voxelium/torch_extensions/inplace_topk/pybind.cpp",
-    ],
-    include_dirs=include_dirs,
-    library_dirs=library_dirs,
-    libraries=libraries,
-    extra_compile_args={"cxx": cxx_extra_compile_args, "nvcc": nvcc_extra_compile_args},
-    extra_link_args=extra_link_args,
-)
+# --------------------- extensions ---------------------
+def make_sparse3d_ext():
+    return CUDAExtension(
+        name="voxelium.torch_extensions.sparse3d._C",
+        sources=[
+            "voxelium/torch_extensions/sparse3d/pybind.cpp",
+            "voxelium/torch_extensions/sparse3d/trilinear_projection.cpp",
+            "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_forward_kernel.cpp",
+            "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_backward_kernel.cpp",
+            "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_forward_kernel.cu",
+            "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_backward_kernel.cu",
+            "voxelium/torch_extensions/sparse3d/volume_extraction.cpp",
+            "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_forward_kernel.cpp",
+            "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_backward_kernel.cpp",
+            "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_forward_kernel.cu",
+            "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_backward_kernel.cu",
+        ],
+        include_dirs=INCLUDE_DIRS,
+        library_dirs=LIBRARY_DIRS,
+        libraries=LIBRARIES,
+        extra_compile_args={"cxx": CXX_FLAGS, "nvcc": NVCC_FLAGS},
+        extra_link_args=EXTRA_LINK_ARGS,
+    )
 
-ext_modules = [voxelium_sparse3d_ext, inplace_topk_ext] if build_extensions else []
+def make_inplace_topk_ext():
+    return CUDAExtension(
+        name="voxelium.torch_extensions.inplace_topk._C",
+        sources=[
+            "voxelium/torch_extensions/inplace_topk/inplace_topk.cpp",
+            "voxelium/torch_extensions/inplace_topk/inplace_topk_cpu_kernels.cpp",
+            "voxelium/torch_extensions/inplace_topk/inplace_topk_cuda_kernels.cu",
+            "voxelium/torch_extensions/inplace_topk/pybind.cpp",
+        ],
+        include_dirs=INCLUDE_DIRS,
+        library_dirs=LIBRARY_DIRS,
+        libraries=LIBRARIES,
+        extra_compile_args={"cxx": CXX_FLAGS, "nvcc": NVCC_FLAGS},
+        extra_link_args=EXTRA_LINK_ARGS,
+    )
 
-# Keep runtime deps in pyproject.toml; avoid duplicating here to prevent conflicts
+ext_modules = [] if SKIP_EXT else [make_sparse3d_ext(), make_inplace_topk_ext()]
+
+# --------------------- setup() ---------------------
+# Keep runtime deps in pyproject.toml; avoid duplication here.
 setup(
     name="Voxelium",
     version="0.0.3",
-    packages=find_packages(),
-    install_requires=[],  # runtime deps defined in pyproject.toml
+    packages=find_packages(include=["voxelium", "voxelium.*"]),
+    install_requires=[],
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
 )
