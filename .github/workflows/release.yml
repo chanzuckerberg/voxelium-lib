@@ -31,51 +31,42 @@ jobs:
       - name: Install pip and cibuildwheel
         run: |
           python3 -m pip install --upgrade pip
-          pip install cibuildwheel
+          pip install cibuildwheel==3.1.4
 
       - name: Build manylinux wheels using custom image
+        run: |
+          cibuildwheel --platform linux --output-dir wheelhouse
         env:
-          # Choose CPython versions
+          # matrix
           CIBW_BUILD: ${{ matrix.python-version }}-*
-          # Not building PyPy or musllinux wheels
           CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_ARCHS: "x86_64"
 
-          # This env is injected into the isolated build (python -m build)
+          # use our custom image
+          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
+
+          # IMPORTANT: use pip frontend with NO build isolation so torch installed below is visible
+          CIBW_BUILD_FRONTEND: pip
+          PIP_NO_BUILD_ISOLATION: "1"
+
+          # Build env seen by setup.py
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
-            # Ensure our setup.py avoids linking libtorch_cuda in CI
+            # Don’t explicitly link torch_cuda.* in CI to avoid accidental coupling
             VOXELIUM_LINK_TORCH_CUDA=0
 
-          # Use your CUDA-enabled manylinux base
-          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
-          CIBW_ARCHS: "x86_64"
-
-          # Keep downloads small: install CPU wheels from the PyTorch CPU index
-          # (not on PyPI) just before build so headers are present.
+          # Install a *CPU* PyTorch in the build environment to keep downloads smaller
+          # (CPU wheels are hosted on the PyTorch index)
           CIBW_BEFORE_BUILD: |
             set -eux
-            echo "Disk before pip:"; df -h; df -i || true
-            du -sh /tmp/* 2>/dev/null || true
-
             python -m pip install --upgrade pip
-            # CPU wheels live on the PyTorch CPU index; add PyPI as extra for deps.
             python -m pip install --no-cache-dir \
               --index-url https://download.pytorch.org/whl/cpu \
               --extra-index-url https://pypi.org/simple \
               "torch==2.8.0+cpu" "torchvision==0.23.0+cpu"
 
-            # Double-set for clarity; CIBW_ENVIRONMENT already exports this.
-            export VOXELIUM_LINK_TORCH_CUDA=0
-
-            # (Optional) show versions
-            python - <<'PY'
-            import torch, torchvision, sys
-            print("Torch:", torch.__version__, "CUDA available:", torch.cuda.is_available(), file=sys.stderr)
-            print("Torchvision:", torchvision.__version__, file=sys.stderr)
-            PY
-
-          # Don't vendor libtorch* into the wheel
+          # Don’t vendor torch libs into our wheel
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -86,10 +77,12 @@ jobs:
             --exclude libc10_cuda.so
             -w {dest_dir} {wheel}
 
-          # Extra logs while iterating
+          # helpful logs
+          CIBW_BEFORE_ALL: |
+            mkdir -p /project/.tmp
+            echo "Disk before pip:"; df -h; df -i || true
+            du -sh /tmp/* 2>/dev/null || true
           CIBW_BUILD_VERBOSITY: "3"
-        run: |
-          cibuildwheel --platform linux --output-dir wheelhouse
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
@@ -111,7 +104,7 @@ jobs:
           python -m pip install --upgrade twine
           twine upload wheelhouse/*
 
-      # For TestPyPI, uncomment below and add TEST_PYPI_API_TOKEN secret
+      # # Uncomment below for Test PyPI publish
       # - name: Publish to TestPyPI
       #   if: startsWith(github.ref, 'refs/tags/v')
       #   env:
