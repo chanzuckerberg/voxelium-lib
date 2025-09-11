@@ -35,33 +35,37 @@ jobs:
 
       - name: Build manylinux wheels using custom image
         env:
-          # Choose CPython versions to build
+          # Choose CPython versions
           CIBW_BUILD: ${{ matrix.python-version }}-*
-          # We’re not building PyPy or musllinux wheels here
+          # Not building PyPy or musllinux wheels
           CIBW_SKIP: "pp* *-musllinux_*"
 
-          # Build-time environment for the container
+          # This env is injected into the isolated build (python -m build)
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
+            # Ensure our setup.py avoids linking libtorch_cuda in CI
+            VOXELIUM_LINK_TORCH_CUDA=0
 
-          # Use your custom image that has CUDA toolchain/headers
+          # Use your CUDA-enabled manylinux base
           CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
           CIBW_ARCHS: "x86_64"
 
-          # Keep downloads smaller in CI:
-          #  - Install CPU torch/torchvision just before build (headers only)
-          #  - Don’t link torch_cuda when compiling (our setup.py honors this)
+          # Keep downloads small: install CPU wheels from the PyTorch CPU index
+          # (not on PyPI) just before build so headers are present.
           CIBW_BEFORE_BUILD: |
             set -eux
             echo "Disk before pip:"; df -h; df -i || true
             du -sh /tmp/* 2>/dev/null || true
 
             python -m pip install --upgrade pip
-            # CPU wheels only (no +cpu suffix since 2.x CPU wheels are on PyPI)
-            python -m pip install --no-cache-dir "torch==2.8.0" "torchvision==0.23.0"
+            # CPU wheels live on the PyTorch CPU index; add PyPI as extra for deps.
+            python -m pip install --no-cache-dir \
+              --index-url https://download.pytorch.org/whl/cpu \
+              --extra-index-url https://pypi.org/simple \
+              "torch==2.8.0+cpu" "torchvision==0.23.0+cpu"
 
-            # Avoid linking against libtorch_cuda during CI builds
+            # Double-set for clarity; CIBW_ENVIRONMENT already exports this.
             export VOXELIUM_LINK_TORCH_CUDA=0
 
             # (Optional) show versions
@@ -71,7 +75,7 @@ jobs:
             print("Torchvision:", torchvision.__version__, file=sys.stderr)
             PY
 
-          # Don’t vendor libtorch* inside the wheel
+          # Don't vendor libtorch* into the wheel
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -82,7 +86,7 @@ jobs:
             --exclude libc10_cuda.so
             -w {dest_dir} {wheel}
 
-          # Extra logs while you iterate
+          # Extra logs while iterating
           CIBW_BUILD_VERBOSITY: "3"
         run: |
           cibuildwheel --platform linux --output-dir wheelhouse
