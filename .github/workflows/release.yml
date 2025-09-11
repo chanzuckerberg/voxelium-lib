@@ -1,4 +1,4 @@
-name: Build manylinux Wheels with CUDA
+name: Build manylinux Wheels with CUDA (preinstalled Torch)
 
 on:
   push:
@@ -6,12 +6,11 @@ on:
       - "v*"
     branches:
       - main
-      # - release-test
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build wheels on custom manylinux+CUDA
+    name: Build wheels on custom manylinux+CUDA (preinstalled torch)
     runs-on: ubuntu-latest
 
     strategy:
@@ -25,9 +24,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build custom manylinux+CUDA Docker image
+      # This Dockerfile MUST preinstall torch==2.8.0 + torchvision for each /opt/python/cp3*-*/bin/python
+      # (as we discussed). It should also have CUDA 12.6 toolchain.
+      - name: Build custom manylinux+CUDA Docker image (with preinstalled torch 2.8.0)
         run: |
-          docker build -t cuda-manylinux:latest -f Dockerfile.cuda-manylinux .
+          docker build -t cuda-manylinux:preinstalled-torch -f Dockerfile.cuda-manylinux .
 
       - name: Install pip and cibuildwheel
         run: |
@@ -38,14 +39,27 @@ jobs:
         run: |
           cibuildwheel --platform linux --output-dir wheelhouse
         env:
+          # Select CPython tags to build
           CIBW_BUILD: ${{ matrix.python-version }}-*
           CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_ARCHS: "x86_64"
+
+          # Use the image that already contains torch 2.8.0 for each interpreter
+          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:preinstalled-torch
+
+          # Crucial: expose preinstalled torch to setup.py (no build isolation overlay)
           CIBW_ENVIRONMENT: |
+            PIP_NO_BUILD_ISOLATION=1
+            PIP_DISABLE_PIP_VERSION_CHECK=1
+            PIP_NO_CACHE_DIR=1
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
-            PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu121
-          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
-          CIBW_ARCHS: "x86_64"
+            # Optional toggle to avoid linking torch_cuda (leave at 1 for GPU wheels)
+            VOXELIUM_LINK_TORCH_CUDA=1
+            # Optional: let nvcc know about architectures in Torch builds
+            TORCH_CUDA_ARCH_LIST=8.0;8.6;8.9;9.0+PTX
+
+          # Keep torch libs external; auditwheel will not bundle them when excluded
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -66,7 +80,7 @@ jobs:
         run: |
           python -m pip install --upgrade twine
           twine check wheelhouse/*
-            
+
       - name: Publish to PyPI
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -75,8 +89,8 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      
-      # Uncomment below for Test PyPI publish
+
+      # Uncomment for TestPyPI
       # - name: Publish to TestPyPI
       #   if: startsWith(github.ref, 'refs/tags/v')
       #   run: |

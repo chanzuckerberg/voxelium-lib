@@ -1,10 +1,9 @@
 [build-system]
+# Keep this minimal so the isolated/overlay env doesn't try to fetch torch.
 requires = [
     "setuptools>=64",
     "wheel",
-    "pybind11",
-    "torch==2.8.0",
-    "torchvision"
+    "pybind11"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -15,10 +14,16 @@ description = "Voxelium - a powerful tool for volumetric processing with CUDA su
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-2.0-or-later" }
+
+# Prefer project.license-files going forward (setuptools deprecation warning fix).
+license-files = []
+
 authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
+
+# Runtime deps (torch is preinstalled in the image at build time, but remains a runtime dep).
 dependencies = [
     "torch==2.8.0",
     "torchvision",
@@ -39,6 +44,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
+# Deprecated in future, but harmless to keep empty; we moved the setting above.
 license-files = []
 include-package-data = true
 

@@ -1,18 +1,20 @@
+# ==== Base: manylinux_2_28 with toolchain ====================================
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
-# Install dev tools and GCC 11
-RUN yum update -y && \
-    yum install -y gcc gcc-c++ make wget curl yum-utils && \
-    yum install -y epel-release && \
-    yum install -y gcc-toolset-11 && \
+# Toolchain & helpers
+RUN yum -y update && \
+    yum -y install gcc gcc-c++ make wget curl yum-utils && \
+    yum -y install epel-release && \
+    yum -y install gcc-toolset-11 && \
     ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/gcc /usr/local/bin/gcc && \
     ln -sf /opt/rh/gcc-toolset-11/root/usr/bin/g++ /usr/local/bin/g++
 
 ENV CC=/usr/local/bin/gcc
 ENV CXX=/usr/local/bin/g++
 
-# Install CUDA 12.6
-RUN yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
+# ==== CUDA 12.6 toolchain (for building CUDA extensions) =====================
+RUN yum-config-manager --add-repo \
+      https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo && \
     yum clean all && \
     yum -y install cuda-toolkit-12-6 cuda-nvcc-12-6 && \
     yum clean all
@@ -20,3 +22,47 @@ RUN yum-config-manager --add-repo https://developer.download.nvidia.com/compute/
 ENV CUDA_HOME=/usr/local/cuda-12.6
 ENV PATH=$CUDA_HOME/bin:$PATH
 ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+
+# Optional: set common arch list for compiling custom kernels (edit as needed)
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0+PTX"
+
+# ==== Build behavior ==========================================================
+# - PIP_NO_BUILD_ISOLATION=1 ensures your preinstalled torch is visible to builds.
+# - PIP_NO_CACHE_DIR=1 keeps layers small.
+# - (Optional) VOXELIUM_LINK_TORCH_CUDA can be toggled by your build.
+ENV PIP_NO_BUILD_ISOLATION=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Versions — adjust if you need different combos
+ARG TORCH_VERSION=2.8.0
+ARG TV_VERSION=0.23.0
+
+# Limit which interpreters you preinstall for (edit if you only need some)
+# Valid globs: /opt/python/cp39-*/bin/python  /opt/python/cp310-*/bin/python  etc.
+# By default, cover 3.10–3.12 (cibuildwheel common set); add cp39 if you need it.
+ARG PY_GLOBS="/opt/python/cp310-*/bin/python /opt/python/cp311-*/bin/python /opt/python/cp312-*/bin/python"
+
+# ==== Preinstall GPU Torch 2.8.0 + torchvision for each Python ===============
+# These are the **GPU wheels** from PyPI (not the CPU channel).
+# They’ll pull the nvidia-* runtime wheels once at build time, so your CI won’t.
+RUN set -eux; \
+    for py in ${PY_GLOBS}; do \
+        echo ">>> Installing PyTorch for $py"; \
+        "$py" -m pip install --upgrade pip setuptools wheel --no-cache-dir; \
+        "$py" -m pip install --no-cache-dir \
+            "torch==${TORCH_VERSION}" \
+            "torchvision==${TV_VERSION}"; \
+        # quick import/version check (no GPU in Docker build, so no .cuda() test)
+        "$py" - <<'PY'
+import sys, torch, torchvision
+print(sys.executable, "torch", torch.__version__, "| torchvision", torchvision.__version__)
+PY
+    done; \
+    rm -rf /root/.cache /var/cache/yum/* /tmp/*
+
+# Optional: show final versions per interpreter in build logs
+RUN for pip in /opt/python/cp3*/bin/pip; do \
+      echo ">>> $pip list | grep -E 'torch|torchvision|setuptools|wheel'"; \
+      $pip list | grep -E 'torch|torchvision|setuptools|wheel' || true; \
+    done
