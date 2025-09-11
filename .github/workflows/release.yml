@@ -34,34 +34,44 @@ jobs:
           pip install cibuildwheel
 
       - name: Build manylinux wheels using custom image
-        run: cibuildwheel --platform linux --output-dir wheelhouse
         env:
-          # Which CPython ABIs to build
+          # Choose CPython versions to build
           CIBW_BUILD: ${{ matrix.python-version }}-*
-          # We’re not building musllinux here
-          CIBW_SKIP: "*-musllinux_*"
-          # Use your custom CUDA-capable manylinux image
-          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
-          # Arch
-          CIBW_ARCHS: x86_64
-          # Extra logging
-          CIBW_BUILD_VERBOSITY: "3"
+          # We’re not building PyPy or musllinux wheels here
+          CIBW_SKIP: "pp* *-musllinux_*"
 
-          # Build-time environment (visible to your setup.py)
+          # Build-time environment for the container
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
 
-          # (Optional) keep downloads smaller in CI:
-          # 1) install CPU-only torch/torchvision in the build venv
-          # 2) tell setup to NOT link libtorch_cuda when building wheels
+          # Use your custom image that has CUDA toolchain/headers
+          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
+          CIBW_ARCHS: "x86_64"
+
+          # Keep downloads smaller in CI:
+          #  - Install CPU torch/torchvision just before build (headers only)
+          #  - Don’t link torch_cuda when compiling (our setup.py honors this)
           CIBW_BEFORE_BUILD: |
+            set -eux
+            echo "Disk before pip:"; df -h; df -i || true
+            du -sh /tmp/* 2>/dev/null || true
+
             python -m pip install --upgrade pip
-            pip install --extra-index-url https://download.pytorch.org/whl/cpu \
-              "torch==2.8.0" "torchvision==0.23.0"
+            # CPU wheels only (no +cpu suffix since 2.x CPU wheels are on PyPI)
+            python -m pip install --no-cache-dir "torch==2.8.0" "torchvision==0.23.0"
+
+            # Avoid linking against libtorch_cuda during CI builds
             export VOXELIUM_LINK_TORCH_CUDA=0
 
-          # Don’t vendor the giant libtorch* libs into your wheel
+            # (Optional) show versions
+            python - <<'PY'
+            import torch, torchvision, sys
+            print("Torch:", torch.__version__, "CUDA available:", torch.cuda.is_available(), file=sys.stderr)
+            print("Torchvision:", torchvision.__version__, file=sys.stderr)
+            PY
+
+          # Don’t vendor libtorch* inside the wheel
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -72,13 +82,18 @@ jobs:
             --exclude libc10_cuda.so
             -w {dest_dir} {wheel}
 
-      - name: Upload built wheels (per-ABI)
+          # Extra logs while you iterate
+          CIBW_BUILD_VERBOSITY: "3"
+        run: |
+          cibuildwheel --platform linux --output-dir wheelhouse
+
+      - name: Upload built wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.python-version }}
           path: wheelhouse/
 
-      - name: Validate wheels with twine
+      - name: Validate wheel with twine
         run: |
           python -m pip install --upgrade twine
           twine check wheelhouse/*
