@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    name: Build wheels on custom manylinux+CUDA
+    name: Build wheels (manylinux + CUDA) ${{ matrix.python-version }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -27,12 +27,44 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # Free space on GitHub-hosted runners (important for CUDA + Docker)
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: Show disk usage (after cleanup)
+        run: |
+          df -h
+          docker system df || true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build custom manylinux+CUDA Docker image
+      # Avoid Docker layers accumulating and eating disk
+      - name: Docker prune (pre-build)
+        run: docker system prune -af --volumes
+
+      # Build custom manylinux+CUDA Docker image with GHA layer cache
+      - name: Build custom manylinux+CUDA Docker image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.cuda-manylinux
+          tags: cuda-manylinux:latest
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Show disk usage (after image build)
         run: |
-          docker build -t cuda-manylinux:latest -f Dockerfile.cuda-manylinux .
+          df -h
+          docker system df || true
 
       - name: Install pip and cibuildwheel
         run: |
@@ -45,12 +77,18 @@ jobs:
         env:
           CIBW_BUILD: ${{ matrix.python-version }}-*
           CIBW_SKIP: "pp* *-musllinux_*"
+          CIBW_ARCHS: "x86_64"
+
+          # Use your custom manylinux image
+          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
+
+          # Build-time env inside the container
           CIBW_ENVIRONMENT: |
             CUDA_HOME=/usr/local/cuda-12.6
             NVCC_ARCHS=61,70,75,80,86,87,89,90
             PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu121
-          CIBW_MANYLINUX_X86_64_IMAGE: cuda-manylinux:latest
-          CIBW_ARCHS: "x86_64"
+
+          # Don't bundle torch libs into the wheel
           CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
             auditwheel repair
             --exclude libtorch.so
@@ -60,6 +98,12 @@ jobs:
             --exclude libc10.so
             --exclude libc10_cuda.so
             -w {dest_dir} {wheel}
+
+      - name: Show disk usage (after wheel build)
+        if: always()
+        run: |
+          df -h
+          docker system df || true
 
       - name: Upload built wheels
         uses: actions/upload-artifact@v4
@@ -72,15 +116,6 @@ jobs:
           python3 -m pip install --upgrade twine
           twine check wheelhouse/*
 
-      # - name: Publish to PyPI
-      #   if: startsWith(github.ref, 'refs/tags/v')
-      #   run: |
-      #     python3 -m pip install --upgrade twine
-      #     twine upload wheelhouse/*
-      #   env:
-      #     TWINE_USERNAME: __token__
-      #     TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-
       # Test PyPI publish
       - name: Publish to TestPyPI
         if: startsWith(github.ref, 'refs/tags/v')
@@ -90,3 +125,8 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+      # Optional: extra cleanup at end
+      - name: Docker prune (post-build)
+        if: always()
+        run: docker system prune -af --volumes
