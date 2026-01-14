@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 Setup module for Voxelium
 """
@@ -7,7 +6,9 @@ Setup module for Voxelium
 import os
 import sys
 from setuptools import setup, find_packages
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension, library_paths
+
+import torch
+from torch.utils.cpp_extension import CUDAExtension, BuildExtension, CUDA_HOME
 
 
 def print_debug_msg():
@@ -37,9 +38,21 @@ project_root = os.path.join(
 sys.path.insert(0, project_root)
 
 include_dirs = [project_root]
-library_dirs = library_paths(cuda=True)
 
-# Torch 2.6 still exposes these shared libs
+
+torch_lib_dir = os.path.join(os.path.dirname(torch.__file__), "lib")
+
+cuda_lib_dirs = []
+if CUDA_HOME is not None:
+    # common CUDA library locations
+    cuda_lib_dirs = [
+        os.path.join(CUDA_HOME, "lib64"),
+        os.path.join(CUDA_HOME, "lib"),
+    ]
+
+library_dirs = [torch_lib_dir] + cuda_lib_dirs
+
+# Torch shared libs (optional; keep if you know you need them)
 libraries = ["torch", "torch_cuda", "c10"]
 
 # Avoid bundling system libs into wheels
