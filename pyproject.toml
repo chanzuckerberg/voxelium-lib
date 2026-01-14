@@ -3,8 +3,8 @@ requires = [
     "setuptools>=64",
     "wheel",
     "pybind11",
-    "torch==2.2.2",
-    "torchvision==0.17.2"
+    "torch==2.6.0",
+    "torchvision==0.21.0"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -19,16 +19,17 @@ authors = [
     { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
+
 dependencies = [
-    "torch==2.2.2",
-    "torchvision==0.17.2",
-    "loguru", 
+    "torch==2.6.0",
+    "torchvision==0.21.0",
+    "loguru",
     "matplotlib",
-    "mrcfile", 
-    "numpy==1.*", 
-    "vtk", 
+    "mrcfile",
+    "numpy==1.*",
+    "vtk",
     "scikit-learn",
-    "scipy", 
+    "scipy",
     "tensorboard",
     "tqdm",
     "starfile",
