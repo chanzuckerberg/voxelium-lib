@@ -137,16 +137,10 @@ requires = [
     "matplotlib",
     "mrcfile",
     "numpy==1.*",
-    "vtk",
     "scikit-learn",
     "scipy",
     "tensorboard",
-    "tqdm",
-    "starfile",
-    "umap-learn",
-    "imageio",
-    "msgpack",
-    "healpy",
+    "alive_progress",
 ]
 
 setup(

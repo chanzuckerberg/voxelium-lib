@@ -11,12 +11,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Voxelium"
 version = "0.0.5"
-description = "Voxelium - a powerful tool for volumetric processing with CUDA support."
+description = "Voxelium - a powerful tool for volumetric CryoEM processing."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "GPL-2.0-or-later" }
+license = { text = "MIT" }
 authors = [
-    { name = "Dari Kimanius", email = "dari.kimanius@czii.org" }
+    { name = "Dari Kimanius", email = "dari.kimanius@biohub.org" }
 ]
 keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 
@@ -27,16 +27,10 @@ dependencies = [
     "matplotlib",
     "mrcfile",
     "numpy==1.*",
-    "vtk",
     "scikit-learn",
     "scipy",
     "tensorboard",
-    "tqdm",
-    "starfile",
-    "umap-learn",
-    "imageio",
-    "msgpack",
-    "healpy"
+    "alive_progress",
 ]
 
 [tool.setuptools]
