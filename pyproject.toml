@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Voxelium"
-version = "0.0.5"
+version = "0.0.6"
 description = "Voxelium - a powerful tool for volumetric CryoEM processing."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -38,6 +38,7 @@ license-files = []
 include-package-data = true
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["voxelium", "voxelium.*"]
 
 [project.optional-dependencies]
@@ -47,6 +48,6 @@ test = ["pytest"]
 minversion = "6.0"
 addopts = "-ra -q"
 testpaths = [
-    "voxelium/torch_extensions/sparse3d",
-    "voxelium/torch_extensions/inplace_topk"
+    "src/voxelium/torch_extensions/sparse3d",
+    "src/voxelium/torch_extensions/inplace_topk"
 ]

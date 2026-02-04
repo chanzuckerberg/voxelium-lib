@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Setup module for Voxelium
+Setup module for Voxelium core library
 """
 
 import os
@@ -31,14 +31,12 @@ nvcc_architectures = nvcc_archs_env.split(",") if nvcc_archs_env else [
 debug = bool(os.environ.get("VOXELIUM_DEBUG"))
 build_extensions = not bool(os.environ.get("VOXELIUM_SKIP_EXT"))
 
-project_root = os.path.join(
-    os.path.realpath(os.path.dirname(__file__)),
-    "voxelium",
-)
-sys.path.insert(0, project_root)
+repo_root = os.path.realpath(os.path.dirname(__file__))
+src_root = os.path.join(repo_root, "src")
+project_root = os.path.join(src_root, "voxelium")
 
+sys.path.insert(0, src_root)  
 include_dirs = [project_root]
-
 
 torch_lib_dir = os.path.join(os.path.dirname(torch.__file__), "lib")
 
@@ -82,17 +80,17 @@ if debug:
 voxelium_sparse3d_ext = CUDAExtension(
     name="voxelium.torch_extensions.sparse3d._C",
     sources=[
-        "voxelium/torch_extensions/sparse3d/pybind.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_forward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_backward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_forward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_backward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/volume_extraction.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_forward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cpu_backward_kernel.cpp",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_forward_kernel.cu",
-        "voxelium/torch_extensions/sparse3d/volume_extraction_cuda_backward_kernel.cu",
+        "src/voxelium/torch_extensions/sparse3d/pybind.cpp",
+        "src/voxelium/torch_extensions/sparse3d/trilinear_projection.cpp",
+        "src/voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_forward_kernel.cpp",
+        "src/voxelium/torch_extensions/sparse3d/trilinear_projection_cpu_backward_kernel.cpp",
+        "src/voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_forward_kernel.cu",
+        "src/voxelium/torch_extensions/sparse3d/trilinear_projection_cuda_backward_kernel.cu",
+        "src/voxelium/torch_extensions/sparse3d/volume_extraction.cpp",
+        "src/voxelium/torch_extensions/sparse3d/volume_extraction_cpu_forward_kernel.cpp",
+        "src/voxelium/torch_extensions/sparse3d/volume_extraction_cpu_backward_kernel.cpp",
+        "src/voxelium/torch_extensions/sparse3d/volume_extraction_cuda_forward_kernel.cu",
+        "src/voxelium/torch_extensions/sparse3d/volume_extraction_cuda_backward_kernel.cu",
     ],
     include_dirs=include_dirs,
     library_dirs=library_dirs,
@@ -107,10 +105,10 @@ voxelium_sparse3d_ext = CUDAExtension(
 inplace_topk_ext = CUDAExtension(
     name="voxelium.torch_extensions.inplace_topk._C",
     sources=[
-        "voxelium/torch_extensions/inplace_topk/inplace_topk.cpp",
-        "voxelium/torch_extensions/inplace_topk/inplace_topk_cpu_kernels.cpp",
-        "voxelium/torch_extensions/inplace_topk/inplace_topk_cuda_kernels.cu",
-        "voxelium/torch_extensions/inplace_topk/pybind.cpp",
+        "src/voxelium/torch_extensions/inplace_topk/inplace_topk.cpp",
+        "src/voxelium/torch_extensions/inplace_topk/inplace_topk_cpu_kernels.cpp",
+        "src/voxelium/torch_extensions/inplace_topk/inplace_topk_cuda_kernels.cu",
+        "src/voxelium/torch_extensions/inplace_topk/pybind.cpp",
     ],
     include_dirs=include_dirs,
     library_dirs=library_dirs,
@@ -145,8 +143,9 @@ requires = [
 
 setup(
     name="Voxelium",
-    version="0.0.5",
-    packages=find_packages(),
+    version="0.0.6",
+    packages=find_packages(where="src"),
+    package_dir={"": "src"},
     install_requires=requires,
     ext_modules=ext_modules,
     cmdclass={"build_ext": BuildExtension},
