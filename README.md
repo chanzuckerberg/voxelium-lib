@@ -1,4 +1,4 @@
-# Voxelium Alpha Testing
+# Voxelium
 
 This repository currently contains the Voxelium core library.
 
