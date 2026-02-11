@@ -143,7 +143,7 @@ requires = [
 
 setup(
     name="Voxelium",
-    version="0.0.6",
+    version="0.1.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=requires,
