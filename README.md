@@ -1,60 +1,15 @@
 # Voxelium Alpha Testing
 
-This repository currently contains the alpha version of the Voxelium library.
+This repository currently contains the Voxelium core library.
 
 ## Installation
-After you've cloned the repo and `cd` into the project directory you first need to set up the proper Conda environment.
-Use the `environment.yml` file to create a new environment called 'voxelium' with the right module installed, by running:
 
-```conda env create -f environment.yml```
+After cloning the repository and navigating (cd) into the project directory, first create and activate a Conda or standard Python virtual environment.
+We recommend installing the prebuilt wheels distributed via PyPI (manylinux-compatible):
 
-### Visualization-Only Installation
-If you only need to visualize reconstruction results (e.g. on you local computer) you can skip the building of the torch extensions. 
-These are only needed on the computational nodes. First activate the new Conda environment:
-
-```conda activate voxelium```
-
-You can now install the voxelium library from inside the project directory by running:
-
-```VOXELIUM_SKIP_EXT=TRUE pip3 install .```
-
-In the above, `VOXELIUM_SKIP_EXT` will skip installation of the torch extensions.
-
-### Full Installation
-
-If you need to run reconstruction (e.g. on a computational node), you need to build and install the torch extensions.
-You will need to have a CUDA toolkit installed for this that matches the pytorch version installed. 
-Once you have that ready you can just run:  
-
-```pip3 install .```
-
-## 3D Spectral Heterogeneity Analysis (SHA)
-Activate the voxelium conda environment. Then run `voxelium -h` to see a list of modules.
-To run the analysis, the sha3D module can be run as follows:
-
-```voxelium SHA3D <input_star_data> <log_directory> --gpu 0```
-
-Here, `<input_star_data>` is an input STAR-file containing all the particles with CTF and pose parameters set.
-`<log_directory>` will contain the results of the job. 
-
-NOTE: Adding `--preload` speeds things up considerably, assuming the dataset fits in memory.
-
-NOTE: You need to install extension for this, see above.
-
-## SHA3D Visualization
-
-To visualize the results run:
-
-```voxelium sha3D_viwer <log_directory>```
-
-In the above, `<log_directory>` is the path to the directory containing the results of the SHA3D analysis, see above.
-
-## Troubleshoot
-
-If there's an issue with the CUDA environment it can help preventing PYPI building in an isolated environment by running
-
-```pip install --no-build-isolation .```
-
+```
+pip install voxelium
+```
 
 
 ## 🤝 Contributor covenant code of conduct
