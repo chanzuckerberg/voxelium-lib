@@ -3,7 +3,7 @@ requires = [
     "setuptools>=64",
     "wheel",
     "pybind11",
-    "torch==2.6.0",
+    "torch==2.8.0",
     "torchvision==0.21.0"
 ]
 build-backend = "setuptools.build_meta"
@@ -30,7 +30,7 @@ keywords = ["CryoEM", "CryoET", "Reconstruction", "ML"]
 license = { text = "MIT" }
 
 dependencies = [
-    "torch==2.6.0",
+    "torch==2.8.0",
     "torchvision==0.21.0",
     "loguru",
     "matplotlib",
