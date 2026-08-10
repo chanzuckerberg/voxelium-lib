@@ -123,15 +123,15 @@ class ContrastTransferFunction:
             ctf = -torch.sin(gamma)
             if b_factor is not None:
                 c3 = -b_factor/4.
-                ctf *= torch.exp(c3 * n4[None])
+                ctf *= torch.exp(c3 * n2[None])
             elif self.c3 != 0:
-                ctf *= torch.exp(self.c3 * n4[None])
+                ctf *= torch.exp(self.c3 * n2[None])
 
 
         # 2 Dimensions
         elif len(shape) == 2:
             v = v.view(-1)
-            xx, yy, xy, n4 = freq
+            xx, yy, xy, n2, n4 = freq
 
             angle = angle * np.pi / 180
             acos = torch.cos(angle)
@@ -163,10 +163,10 @@ class ContrastTransferFunction:
             ctf = -torch.sin(gamma)
             if b_factor is not None:
                 c3 = -b_factor/4.
-                ctf *= torch.exp(c3 * n4[None])
+                ctf *= torch.exp(c3 * n2[None])
             elif self.c3 != 0:
-                ctf *= torch.exp(self.c3 * n4[None])
-        
+                ctf *= torch.exp(self.c3 * n2[None])
+
         return ctf
 
     @staticmethod
@@ -197,9 +197,10 @@ class ContrastTransferFunction:
             xx = freq_x**2
             yy = freq_y**2
             xy = freq_x * freq_y
-            n4 = (xx + yy)**2  # Norms squared^2
+            n2 = xx + yy  # Norm squared
+            n4 = n2**2  # Norm squared^2
 
-            return xx, yy, xy, n4
+            return xx, yy, xy, n2, n4
 
 
     def get_state_dict(self) -> Dict:

@@ -994,11 +994,11 @@ def bfactor_grid(
     )
 
     if len(shape) == 1:
-        n4 = freq**4
+        n2 = freq**2
     elif len(shape) == 2:
         freq_x, freq_y = freq
         xx = freq_x**2
         yy = freq_y**2
-        n4 = (xx + yy)**2  # Norms squared^2
-        
-    return torch.exp(-b_factor/4. * n4[None])
+        n2 = xx + yy  # Norm squared
+
+    return torch.exp(-b_factor/4. * n2[None])
